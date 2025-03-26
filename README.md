@@ -1,93 +1,65 @@
-# PDCv2-Public
+# PDCv2 Development Kit
 
+This repo hosts all the scripts required to get you started using the development kit for our PDCs.
+The development kit consists of a ZCU102 FPGA board, two adaptor boards and two 2x2 heads for detection.
 
+![Assembled development kit](documentation/images/devkit_assembled.jpg)
+
+The complete setup will make use of an host computer communicating with the ZCU102 via Ethernet to for control, configuration and data acquisition.
+We recommand reading through the [ZCU102 Getting Started Guide](./documentation/gettingStarted/zcu102.md) for a better undestanding of how the setup works before plugging everything and start using it.
+A better understanding of the platform might help troubleshoot issues you may have on your setup.
 
 ## Getting started
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+To get started using the platform, you will need a Linux computer with an Ehternet port or USB dongle, an SD card and a SD card reader.
+For Linux, recent debian-based LTS distributions and red-hat based distribution are supported (i.e. Ubuntu-20.04, Ubuntu-22.04, Ubuntu-24.04, Almalinux 8).
+Here are the list of the steps required to get the setup up and running.
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+1. Clone this repo on the PC you want to use as host (if you are new to git, you can follow [this guide](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository)).
+2. Fetch the `img.tar.gz` file from the release tab of this repo then extract. This archive contains the `*debian_image.img` to flash your SD with.
+3. Flash the SD card with the image `*debian_image.img` provided in the repo. This can be done with [balenaEtcher](https://etcher.balena.io/) or other equivalent programs/tools.
+4. Insert the SD card in your ZCU102 board and connect it via Ethernet to the host. Power-it on. 
+5. Run the script `setupHosts/setup.sh` to install required packages and configure the host computer. Feel free to look at it to understand what has been installed and configured on you PC. After this has run, you should be able to communicate with the ZCU102 board and FPGA and connect to it by running `ssh zcudev`.
+6. Activate the created python environment: `source ~/venv_pdcv2/bin/activate`.
+7. To test communication with your PDCs, connect the heads using the blue cables to the adaptor board, power-on the adaptor boards, and run the test script `hostApps/python/validatePDCCommunication.py`. 
+You can do so by placing the power switch towards the ZCU102 ([view image](documentation/images/adaptor_board.jpg)). 
+These tests will only validate the communication with the digital core of the chips without enabling any SPADs.
+7. Everything, should work. If not, you can read through the [ZCU102 Getting Started Guide](./documentation/gettingStarted/zcu102.md) to help you troubleshoot where the issue might be.
+Don't hesitate to contact us to help you debug your setup.
 
-## Add your files
+## Host Computer scripts
 
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
+This repo contains an suite of scripts to help you setup basics functionalities of the PDC. 
+There are some helpers to start and monitor the application mentioned in the [ZCU102 Getting Started Guide](./documentation/gettingStarted/zcu102.md) (dataReader, dma2h5).
+The only prior steps to running these steps is having the setup script on the host beforehand and mounting the NFS folders on the ZCU102 through the `setup-zynq` script (see [ZCU102 Getting Started Guide](./documentation/gettingStarted/zcu102.md) section 1.10).
 
 ```
-cd existing_repo
-git remote add origin https://gitlab.gegi.usherbrooke.ca/grams3d/pdcv2-public.git
-git branch -M main
-git push -uf origin main
+└───hostApps/python
+│   └───modules # Utility classes for different functionalities
+│       │   fgColors.py: Add colors in prints in the terminal
+│       │   h5Reader.py: Manage generated HDF5 file and access data elements
+│       │   pdcHelper.py: Configure the different registers of the PDC
+│       │   pixMap.py: Map the ID of the pixel to its X/Y coordinates
+│       │   sshClientHelper.py: Open a ssh connection to the ZCU102 and forwards commands to the applications
+│       │   systemHelper.py: Miscellaneous (print formatting...)
+│       │   zynqCtlPdcRoutines.py: Configure and control the Tile Controller state machine and send various commands
+│       │   zynqDataTransfer.py: Manage the dataflow between the ZCU102 and the host computer (dataReader, dma2h5, NFS server validation, etc...)
+│       │   zynqEnvHelper.py: Module to set path and variable to use for the scripts
+│       │   zynqHelper.py: Manage auxiliary features of the ZCU102 board (hardware info, delay line configuration) 
+    # Various graphical application configuring the PDCs with active SPADs to display different informations
+│   │   getSpadTcrUcrCcrUsingFlag.py: Get the different count rates (total, uncorellated and correlated) of the SPADs
+│   │   getSpadTcrUsingFlag.py: Get the total count rates of the SPADs
+│   │   openCtlDataComm.py: Starts the communication channels of the platform (NFS server validation, dma reader and dma2h5)
+│   │   plotDsum.py: Displays the digital sum
+│   │   preparePdc.py: Utility for inital PDC configuration
+│   │   testPixQcUsingTrigger.py: Tests the quenching circuits of the chip using the internal trigger
+        # Misc:
+│   │   validatePDCCommunication.py: Test to validate that you can communicate with your
+│   │   requirements.txt: List of python modules to install. Should already be installed in the `venv_pdcv2` created with the setup script
 ```
 
-## Integrate with your tools
+These should help you visualize incoming information from your PDC and develop new appliations tailored to your setup.
+New scripts might come in the future to help you develop more complex setups, either developped by the team at Sherbrooke or other user of the platform.
 
-- [ ] [Set up project integrations](https://gitlab.gegi.usherbrooke.ca/grams3d/pdcv2-public/-/settings/integrations)
 
-## Collaborate with your team
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
-
-## Test and Deploy
-
-Use the built-in continuous integration in GitLab.
-
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
-
-***
-
-# Editing this README
-
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
-
-## Suggestions for a good README
-
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
-
-## Name
-Choose a self-explaining name for your project.
-
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
-
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
-
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
-
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
-
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
-
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
-
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
-
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
-
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
-
-## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.

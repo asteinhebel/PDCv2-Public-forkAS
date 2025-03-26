@@ -1,0 +1,9 @@
+ipython
+matplotlib
+flake8
+numpy
+parallel-ssh
+sshconf
+h5py
+pandas
+pytest
