@@ -89,7 +89,7 @@ function eth_config {
 echo "Available interfaces:"
 ip addr show
 read -p "Which do you want to use to communicate to ZCU102? (ex. enx001A)" interface
-sudo nmcli con add con-name "static-$interface" ifname $interface type ethernet ip4 $SUBNET_PREFIX.16/24 gw4 $SUBNET_PREFIX.1
+sudo nmcli con add con-name "static-$interface" ifname $interface type ethernet ip4 $SUBNET_PREFIX.1/24 
 sudo nmcli con up static-$interface
 }
 
@@ -97,7 +97,7 @@ sudo nmcli con up static-$interface
 function ssh_rsa_config {
 if [ ! -f ~/.ssh/id_rsa_zcu ]; then
 ssh-keygen -t rsa -f ~/.ssh/id_rsa_zcu
-cat ~/.ssh/id_rsa_zcu.pub | ssh $ZYNQ_USER@$SUBNET_PREFIX.16 "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys"
+ssh-copy-id -i ~/.ssh/id_rsa_zcu.pub zynq@102.180.0.16
 fi
 
 if [ ! -f "~/.ssh/config" ]; then
@@ -140,7 +140,6 @@ if [[ $# -eq 0 ]] ; then
     eth_config # 6
     ssh_rsa_config # 7
     create_data_dir # 8
-    validate # 9
 else
     while [ $# -ne 0 ]
 do
@@ -169,9 +168,6 @@ do
             ;;
         --create_data_dir)
             create_data_dir
-            ;;
-        --validate)
-            validate
             ;;
         --help)
             print_usage

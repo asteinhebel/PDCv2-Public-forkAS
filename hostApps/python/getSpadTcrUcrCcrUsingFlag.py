@@ -629,7 +629,11 @@ def getZppOptimalPeriod(allPdcsZppData, nSpad):
             nb += 1
     if nb > 0:
         avgTcrAll /= nb
-    avgPrdAll = 1.0/avgTcrAll
+    if avgTcrAll != 0:
+        avgPrdAll = 1.0/avgTcrAll
+    else:
+        print(f"{fgColors.red}ERROR: no TCR detected on any SPAD. Is the HV ok ? Is the data link ok ?{fgColors.endc}")
+        sys.exit()
     print(f"{fgColors.blue}Average total count rate over {nb} PDCs is {avgTcrAll:.1f} for {nSpad} SPADs.{fgColors.endc}")
     avgPrd1Spad = avgPrdAll*nSpad
     print(f"{fgColors.blue}Average period per SPAD is {avgPrd1Spad:.3E}{fgColors.endc}")
