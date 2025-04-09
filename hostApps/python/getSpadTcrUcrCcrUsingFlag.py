@@ -177,8 +177,8 @@ PDC_SETTING.TIME = client.runReturnSplitInt('pdcTime -g')
 
 # === ANLG REGISTER ===
 print("\n=== ANLG REGISTER ===")
-ANLG = 0x0000; # disabled
-#ANLG = 0x001F; # full amplitude (~30 µA)
+#ANLG = 0x0000; # disabled
+ANLG = 0x001F; # full amplitude (~30 µA)
 client.runPrint(f"pdcCfg -a ANLG -r {ANLG} -g")  # set analog monitor
 PDC_SETTING.ANLG = ANLG
 
