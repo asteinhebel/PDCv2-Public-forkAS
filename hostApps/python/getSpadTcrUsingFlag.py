@@ -352,7 +352,11 @@ class tcrPlotter:
 
         # set titles
         self.axes.flat[self.axTcr].title.set_text("TCR as a function of the SPAD index")
+        self.axes.flat[self.axTcr].set_xlabel("PDC Index")
+        self.axes.flat[self.axTcr].set_ylabel(f"TCR over {measTime}s")
         self.axes.flat[self.axPop].title.set_text("Histogram of TCR")
+        self.axes.flat[self.axPop].set_xlabel("Percent of SPADS with TCR < y value")
+        self.axes.flat[self.axPop].set_ylabel(f"TCR over {measTime}s")
 
         # show legends
         self.updateLegend()
