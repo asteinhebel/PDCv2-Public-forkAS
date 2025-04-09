@@ -467,7 +467,7 @@ COIN_WLEN = 1   # coincidence windows of X clock cycles
 client.runPrint(f"ctlCfg -a COIW -r 0x{COIN_WLEN&0x03FF:04x} -g")
 
 # set the coincidence thresholds
-NCH_TH = 3      # number of PDC channel for a coincidence
+NCH_TH = 1#3      # number of PDC channel for a coincidence
 NUM_BANK = 1    # number of hits per PDC
 cothReg = ((NCH_TH&0x7F)<<8) | (NUM_BANK&0x7)
 client.runPrint(f"ctlCfg -a COTH -r 0x{cothReg:04x} -g")
@@ -502,6 +502,7 @@ client.runPrint(f"ctlCfg -a FSMM -r 0x{fsmmReg|0x3:04x} -g"); # starts the FSM
 print("\n=== READY TO OPERATE ===")
 # NOTE: Implement here a specific routine
 try:
+    print(f"{fgColors.bYellow}Turn off HV here{fgColors.endc}")
     input("Press [enter] key to exit")
 except KeyboardInterrupt:
     print("\nKeyboard Interrupt: exit program")
