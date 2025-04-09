@@ -163,8 +163,8 @@ PDC_SETTING.TIME = client.runReturnSplitInt('pdcTime -g')
 
 # === ANLG REGISTER ===
 print("\n=== ANLG REGISTER ===")
-ANLG = 0x0000; # disabled
-#ANLG = 0x001F; # full amplitude (~30 µA)
+#ANLG = 0x0000; # disabled
+ANLG = 0x001F; # full amplitude (~30 µA)
 client.runPrint(f"pdcCfg -a ANLG -r {ANLG} -g")  # set analog monitor
 PDC_SETTING.ANLG = ANLG
 
@@ -356,7 +356,8 @@ class tcrPlotter:
                                                                      facecolors='none',
                                                                      edgecolors=self.colors[iPdc],
                                                                      linewidth=1.5,
-                                                                     label=self.label[iPdc])
+                                                                     label=self.label[iPdc],
+                                                                     alpha=0.6)
             # sorted population for each PDC
             self.linePopu[iPdc] = (self.axes.flat[self.axPop].plot(self.spad100[iPdc],
                                                                   self.spadPop[iPdc],
