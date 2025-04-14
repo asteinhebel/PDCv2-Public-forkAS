@@ -161,7 +161,7 @@ class h5Reader:
             # relative path
             self.hdf5_path = os.path.join(self.scripts_path, hfRelPath, "")
         elif not hfAbsPath == "":
-            # aqbsolute path
+            # absolute path
             self.hdf5_path = hfAbsPath
         else:
             # default path
@@ -347,7 +347,7 @@ class h5Reader:
 
         #ZPP = self.HDF_CTL.get(f"PDC/PDC_{iPdc:02d}/PDC_DATA/ZPP/{param}")
         if ZPP.isEmpty():
-            #print(f"ERROR: no PDC ZPP {param} found for PDC {iPdc}")
+            print(f"ERROR: no PDC ZPP {param} found for PDC {iPdc} - is ZPP recorded in the data file?")
             return None
         dbgPrint(f"  Found ZPP for PDC {iPdc}")
         return ZPP
