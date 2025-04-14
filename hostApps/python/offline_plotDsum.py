@@ -33,17 +33,12 @@
 #--                SYS_CLK_PRD
 #--                DSUM_SAMPLE_NCLK
 #----------------------------------------------------------------------------------
-import os, sys, glob
+import os, sys
 from pathlib import Path
 import time, datetime
 import pandas as pd
-import h5py
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.widgets as widgets
-import matplotlib.patches as patches
-
-from enum import IntEnum
 
 # to add buttons to menu bar
 from matplotlib.backend_tools import ToolBase, ToolToggleBase
@@ -86,8 +81,17 @@ except NameError:
 # -----------------------------------------------
 # --- Global settings
 # -----------------------------------------------
-USER_DATA_DIR = "/home/i8x/PDCv2-Public-forkAS/hostApps/python/TEST_DATA"
-HDF5_DATA_DIR = "/home/i8x/PDCv2-Public-forkAS/hostApps/python/TEST_DATA"
+homeRepo=""
+if os.path.isdir('/Users'):
+    homeRepo = '/Users/i8x/Desktop/'
+elif os.path.isdir('/home'):
+    homeRepo = '/home/i8x/'
+else:
+    dbgPrint('Could not identify DATA_DIR directories')
+    sys.exit()
+USER_DATA_DIR = homeRepo+"PDCv2-Public-forkAS/hostApps/python/TEST_DATA"
+HDF5_DATA_DIR = homeRepo+"PDCv2-Public-forkAS/hostApps/python/TEST_DATA"
+print(USER_DATA_DIR)
 
 parsedH5 = []
 
