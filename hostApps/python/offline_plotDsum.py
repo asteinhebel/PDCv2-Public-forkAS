@@ -48,6 +48,8 @@ from enum import IntEnum
 # to add buttons to menu bar
 from matplotlib.backend_tools import ToolBase, ToolToggleBase
 #from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import matplotlib
+matplotlib.use('qtagg')
 import warnings
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
@@ -734,7 +736,6 @@ try:
     while 1:
         # loop until user Ctrl+C
         db = h5Reader(  deleteAfter=False,
-                        #hfRelPath="HDF5",
                         hfAbsPath=HDF5_DATA_DIR,
                         sysClkPrd=SYS_CLK_PRD,
                         dsumPrd=DSUM_SAMPLE_NCLK,
@@ -742,8 +743,6 @@ try:
 
         # nothing new to plot
         if not db.newFileReady():
-            #checkExit(figure_name)
-            #plotPause(fig, 0.01)
             dp.checkExit()
             dp.pausePlot(pauseTime=0.01)
             continue
