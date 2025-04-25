@@ -91,7 +91,6 @@ else:
     sys.exit()
 USER_DATA_DIR = homeRepo+"PDCv2-Public-forkAS/hostApps/python/TEST_DATA"
 HDF5_DATA_DIR = homeRepo+"PDCv2-Public-forkAS/hostApps/python/TEST_DATA"
-print(USER_DATA_DIR)
 
 parsedH5 = []
 
