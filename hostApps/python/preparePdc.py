@@ -199,6 +199,8 @@ print("\n=== ENABLE SOME PIXELS ===")
 # NOTE: see pdcPix app help to see available options
 pixIndex = 0
 client.runPrint(f"pdcPix --index {pixIndex} --mode NONE")
+#AS - replace L201 with output from getSpadTcrUsingFlag
+#client.runPrint(f"pdcSpad --pattern 0x{spadEnPattern:016x} --mode NONE")
 
 # === VALIDATE CONFIGURATIONS ===
 print("\n=== VALIDATE CONFIGURATIONS ===")

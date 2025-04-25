@@ -463,7 +463,11 @@ class tcrPlotter:
 
         if avg > avgTh:
             # SPAD average count rate is higher than threshold
-            print(f"{fgColors.red}Disabling SPAD {iSpad} on PDC {iPdc}{fgColors.endc}")
+            print(f"{fgColors.red}Disabling SPAD {iSpad} on PDC {iPdc} (screamer) {fgColors.endc}")
+            self.spadEn[iPdc] ^= (0x1<<iSpad)
+        elif avg == 0:
+            # SPAD does not respond
+            print(f"{fgColors.red}Disabling SPAD {iSpad} on PDC {iPdc} (dead) {fgColors.endc}")
             self.spadEn[iPdc] ^= (0x1<<iSpad)
         else:
             # SPAD average count rate is lower than threshold
@@ -664,6 +668,7 @@ try:
     for iPdc in range(0, icp.nPdcMax):
         N_SPAD = bin(tp.spadEn[iPdc]).count("1")
         print(f"PDC {iPdc} enabled SPAD are 0x{tp.spadEn[iPdc]:016x} ({N_SPAD} SPAD)")
+        #AS - is this string what is needed? Like L586
 
     # 4 - get count rate with screamers turned off
     sectionPrint("SPAD count rate with screamers turned off")
