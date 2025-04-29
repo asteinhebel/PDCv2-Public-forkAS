@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 
 nmbPDCs = 4
 printvals = False
+savePlots = False
 
 try:
     fIn = sorted(glob.glob(sys.argv[1]+"/*.csv"))
@@ -41,6 +42,7 @@ if printvals:
 
 #pull in TCR only measurement to compare the two scripts
 pathIn = '/'.join(sys.argv[1].split('/')[:-1])+"/" #remove last folder in path
+pdcName = sys.argv[1].split('/')[5]
 
 if os.path.exists(pathIn+"getSpadTcrUsingFlag"):
     pathIn+="getSpadTcrUsingFlag/"
@@ -64,17 +66,26 @@ combo_df["tuc_0"]=df['PDC0_TCR (cps)']
 combo_df["tuc_1"]=df['PDC1_TCR (cps)']
 combo_df["tuc_2"]=df['PDC2_TCR (cps)']
 combo_df["tuc_3"]=df['PDC3_TCR (cps)']
-combo_df['t_0']=df_tcr['SPAD_TCR0']/measTime_tcr
-combo_df['t_1']=df_tcr['SPAD_TCR1']/measTime_tcr
-combo_df['t_2']=df_tcr['SPAD_TCR2']/measTime_tcr
-combo_df['t_3']=df_tcr['SPAD_TCR3']/measTime_tcr
+combo_df['t_0']=df_tcr['SPAD_TCR0']
+combo_df['t_1']=df_tcr['SPAD_TCR1']
+combo_df['t_2']=df_tcr['SPAD_TCR2']
+combo_df['t_3']=df_tcr['SPAD_TCR3']
 combo_df['t/tuc_0']=combo_df['t_0']/combo_df['tuc_0']
-combo_df['t/tuc_1']=combo_df['t_0']/combo_df['tuc_1']
-combo_df['t/tuc_2']=combo_df['t_0']/combo_df['tuc_2']
-combo_df['t/tuc_3']=combo_df['t_0']/combo_df['tuc_3']
+combo_df['t/tuc_1']=combo_df['t_1']/combo_df['tuc_1']
+combo_df['t/tuc_2']=combo_df['t_2']/combo_df['tuc_2']
+combo_df['t/tuc_3']=combo_df['t_3']/combo_df['tuc_3']
 
 fig = plt.figure()
-plt.plot([combo_df[f't/tuc_{i}'] for i in range(4)], 'o-',label=[str(i) for i in range(64)])
-plt.legend(loc='best')
-plt.yscale('log')
-plt.show()
+plt.plot(np.array([combo_df[f't/tuc_{i}'] for i in range(4)]).T, 'o-',label=["PDC"+str(i) for i in range(4)])
+plt.axhline(y=combo_df[f't/tuc_0'].median(), linestyle='--',color=f"C0", label=f"{combo_df[f't/tuc_0'].median():.2f}")
+plt.axhline(y=combo_df[f't/tuc_1'].median(), linestyle='--',color=f"C1", label=f"{combo_df[f't/tuc_1'].median():.2f}")
+plt.axhline(y=combo_df[f't/tuc_2'].median(), linestyle='--',color=f"C2", label=f"{combo_df[f't/tuc_2'].median():.2f}")
+plt.axhline(y=combo_df[f't/tuc_3'].median(), linestyle='--',color=f"C3", label=f"{combo_df[f't/tuc_3'].median():.2f}")
+plt.title(pdcName)
+plt.legend(loc='best', ncol=2)
+plt.ylim((0, 2))
+if savePlots:
+    plt.savefig(f"plots/compareTCR_ratioTCRBetweenScripts_{pdcName}.png")
+else:
+    plt.show()
+plt.close()

@@ -4,6 +4,7 @@ import sys
 import matplotlib.pyplot as plt
 
 nmbPDCs = 4
+savePlots = True
 try:
     if nmbPDCs<4:
         df = [pd.read_csv(i) for i in sys.argv[1].split(',')]
@@ -25,7 +26,10 @@ for i,d in enumerate(df):
     plt.xlabel('Percent [%]')
     plt.yscale('log')
     plt.title(pdcName[i])
-    plt.show()
+    if savePlots:
+        plt.savefig(f"plots/compareTCR_turnonPerc_{pdcName[i]}.png")
+    else:
+        plt.show()
     plt.close()
 
 #calculate 2nd derivative
@@ -45,7 +49,10 @@ for i,d in enumerate(df):
 plt.legend(loc='best')
 plt.yscale('log')
 plt.xlabel('Percent [%]')
-plt.show()
+if savePlots:
+    plt.savefig("plots/compareTCR_turnonPerc_all.png")
+else:
+    plt.show()
 plt.close()
 
 
