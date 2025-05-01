@@ -2,26 +2,65 @@ import pandas as pd
 import numpy as np
 import sys, glob, os
 import matplotlib.pyplot as plt
+import re
 
 
-def plotScans(dict, vals, save, name='scan'):
+def plotScans(dict, vals, save, name='scan',show=True):
+    medians=[]
     for pdc in range(4):
+        #transpose data
+        dataToPlot = np.array([list(dict.values())[i][f'SPAD_TCR{pdc}'] for i in range(len(dict.values()))]).T
         fig=plt.figure()
-        plt.plot(np.array([list(dict.values())[i][f'SPAD_TCR{pdc}'] for i in range(len(dict.values()))]).T, label=vals)
-        plt.legend(loc='best')
+        plt.plot(dataToPlot, label=vals)
+        tmp_medians = np.median(dataToPlot, axis=0)
+        medians.append(tmp_medians)
+        for i,m in enumerate(tmp_medians):
+            plt.axhline(y=m, linestyle='--',color=f"C{i}", label=f"{m:.2f}")
         plt.yscale('log')
         plt.xlabel('SPAD index')
         plt.ylabel('TCR (cps)')
         plt.title(f'{name} PDC {pdc}')
+        plt.legend(loc='best',ncol=2)
         if save:
             plt.savefig(f'plots/timing_{name}_TCR_pdc{pdc}.png')
+        elif show:
+            plt.show()
         else:
-            plt.show()  
-
+            pass 
+        plt.close()
+    return medians
     
+def plotMedians(meds, vals_full,save):
+    #get values out of vars and turn them into ints
+    vals_ind=[re.search(r"\d", v).start() for v in vals_full] #overkill - could just compute for the first entry and then apply to all because they all have the same leading string
+    vals = [int(v[i:]) for v,i in zip(vals_full,vals_ind)]
+    name = vals_full[0][:vals_ind[0]]
+    
+    if len(meds[0])!=len(vals):
+        print("Error in plotting medians")
+        sys.exit()
+
+    fig=plt.figure()
+    for i,m in enumerate(meds):
+        #plot sorted arrays
+        plt.plot(sorted(vals),[x for _, x in sorted(zip(vals, m))], 'o-',label=f"PDC{i}")
+    plt.legend(loc='best')
+    plt.title(name)
+    plt.xlabel('Scan value')
+    plt.ylabel('Median TCR')
+    if save:
+        plt.savefig(f'plots/timing_{name}_TCR__medians.png')
+    else:
+        plt.show()
+    plt.close()
 
 
-printvals = False
+
+
+
+
+
+
 savePlots = True
 
 try:
@@ -54,6 +93,11 @@ dict_holdoff = {k: dict_dfs[k] for k in var_holdoff}
 
 
 #plot
-plotScans(dict_flag, var_flag, savePlots, name="flag")
-plotScans(dict_rech, var_rech, savePlots, name="rech")
-plotScans(dict_holdoff, var_holdoff, savePlots, name="holdoff")
+medians_flag = plotScans(dict_flag, var_flag, savePlots, name="flag", show=False)
+medians_rech = plotScans(dict_rech, var_rech, savePlots, name="rech", show=False)
+medians_holdoff = plotScans(dict_holdoff, var_holdoff, savePlots, name="holdoff", show=False)
+
+
+plotMedians(medians_flag, var_flag, savePlots)
+plotMedians(medians_rech, var_rech, savePlots)
+plotMedians(medians_holdoff, var_holdoff, savePlots)
