@@ -26,6 +26,7 @@ import statistics
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import warnings
+import threading
 
 # custom modules
 from modules.fgColors import fgColors
@@ -232,22 +233,31 @@ sectionPrint("configure the external trigger")
 # system clock period (in seconds)
 CLK_PRD = icp.sysClkPrd
 
+# minimum setting from proper operation with ZPP:
+MIN_ZPP_RECOMMENDED_PERIOD = 2e-3
+
 # trigger parameters
-N_LOOP = 1  # number of trigger loops
-N_TRG = 10  # number of trigger per loop NOTE 32767 is the maximum possible value
+    # NOTE: N_TRG: 32767 is the maximum possible value
+    # NOTE: N_TRG: since min measure time is MIN_ZPP_RECOMMENDED_PERIOD,
+    #       for any setting where N_TRG*TRG_PRD is less than MIN_ZPP_RECOMMENDED_PERIOD,
+    #       the execution time won't be any faster
+N_TRG = 100  # number of trigger per loop
 TRG_ON = 50e-9  # seconds
-TRG_PRD = 2e-6  # seconds NOTE 655.36e-6 is the maximum possible value
+TRG_PRD = 10e-6  # seconds NOTE 655.36e-6 is the maximum possible value
 
 N_TRG_CYC = int(TRG_PRD/CLK_PRD)
 N_TRG_ON = int(TRG_ON/CLK_PRD)
 N_TRG_OFF = int(N_TRG_CYC-N_TRG_ON)
-measTime = 2*N_TRG*TRG_PRD # ZPP period in seconds
+
+measTime = 3*max(N_TRG*TRG_PRD, MIN_ZPP_RECOMMENDED_PERIOD) # ZPP period in seconds
+    # NOTE: Using 3* to make sure the triggers are in the center of the ZPP period
+    #       | measTime (wait) | measTime (N_TRG) | measTime (wait) |
 
 # make sure to disable before changing settings
 client.runPrint(f"ctlCfg -a TRGN -r 0x0000 -g")
 
-client.runPrint(f"ctlCfg -a TRG0 -r 0x{icp.pdcEnUser:04x} -g")
-client.runPrint(f"ctlCfg -a TRG1 -r 0x0000 -g")
+client.runPrint(f"ctlCfg -a TRG0 -r 0x{icp.pdcEnUser&0xFFFF:04x} -g")
+client.runPrint(f"ctlCfg -a TRG1 -r 0x{(icp.pdcEnUser>>16)&0xFFFF:04x} -g")
 client.runPrint(f"ctlCfg -a TRG2 -r 0x0000 -g")
 client.runPrint(f"ctlCfg -a TRG3 -r 0x0000 -g")
 client.runPrint(f"ctlCfg -a TRGS -r 0x0000 -g")
@@ -261,18 +271,27 @@ client.runPrint(f"ctlCfg -a TRGL -r 0x{N_TRG_OFF:04x} -g")
 # ---------------------------------------
 sectionPrint("configure Controller ZPP module")
 CLK_PRD = icp.sysClkPrd
+class ZppModuleSetMethod(IntEnum):
+    app=0,
+    registers=1
 
-print("  Configure ZPP Timer High Period")
-ZPP_HIGH_PRD=measTime # seconds
-ZPP_HIGH_REG=int(ZPP_HIGH_PRD/CLK_PRD)
-client.runPrint(f"ctlCfg -a ZPH0 -r 0x{ZPP_HIGH_REG&0xFFFF:04x} -g")
-client.runPrint(f"ctlCfg -a ZPH1 -r 0x{(ZPP_HIGH_REG>>16)&0xFFFF:04x} -g")
+method = ZppModuleSetMethod.app
+if method == ZppModuleSetMethod.app:
+    # new application available from 20250509 image
+    client.runPrint(f"set-ctl-zpp-prd {measTime}")
+elif method == ZppModuleSetMethod.registers:
+    print("  Configure ZPP Timer High Period")
+    ZPP_HIGH_PRD=measTime # seconds
+    ZPP_HIGH_REG=int(ZPP_HIGH_PRD/CLK_PRD)
+    client.runPrint(f"ctlCfg -a ZPH0 -r 0x{ZPP_HIGH_REG&0xFFFF:04x} -g")
+    client.runPrint(f"ctlCfg -a ZPH1 -r 0x{(ZPP_HIGH_REG>>16)&0xFFFF:04x} -g")
 
-print("  Configure ZPP Timer Low Period")
-ZPP_LOW_PRD=CLK_PRD
-ZPP_LOW_REG=int(ZPP_LOW_PRD/CLK_PRD)
-client.runPrint(f"ctlCfg -a ZPL0 -r 0x{ZPP_LOW_REG&0xFFFF:04x} -g")
-client.runPrint(f"ctlCfg -a ZPL1 -r 0x{(ZPP_LOW_REG>>16)&0xFFFF|0x8000:04x} -g")  # |0x8000 to enable ZPP
+    print("  Configure ZPP Timer Low Period")
+    ZPP_LOW_PRD=CLK_PRD
+    ZPP_LOW_REG=int(ZPP_LOW_PRD/CLK_PRD)
+    client.runPrint(f"ctlCfg -a ZPL0 -r 0x{ZPP_LOW_REG&0xFFFF:04x} -g")
+    client.runPrint(f"ctlCfg -a ZPL1 -r 0x{(ZPP_LOW_REG>>16)&0xFFFF|0x8000:04x} -g")  # |0x8000 to enable ZPP
+
 
 
 # ------------------------------------------------
@@ -295,6 +314,11 @@ class tcrPlotter:
         # if PDc is enabled and gives valid data
         self.pdcValid = [False]*self.nPdcMax
 
+        # index of tested pixel
+        self.current_pixel_index = -1
+        self.done_test_all_pixels = False
+        self.run = True
+
         # data
         self.spadIdx = range(0, self.nSpad)
         self.spadTcr = [[0]*self.nSpad for iPdc in range(self.nPdcMax)]
@@ -302,9 +326,10 @@ class tcrPlotter:
         self.spadPop = [[] for iPdc in range(self.nPdcMax)]
 
         self.spadCumul100 = []
-        self.spadCumulHis = []
+        self.spadCumulPop = []
 
-        self.spadEn = [4096]*self.nPdcMax
+        self.spadEn = [self.nSpad]*self.nPdcMax
+        self.spadDis = [0]*self.nPdcMax
 
         # plot constants
         self.axTcr = 0
@@ -365,7 +390,7 @@ class tcrPlotter:
         # cumulative population of all PDCs
         self.lineCumulLabel = f"All PDCs"
         self.lineCumul = (self.axes.flat[self.axPop].plot(self.spadCumul100,
-                                                          self.spadCumulHis,
+                                                          self.spadCumulPop,
                                                           label=self.lineCumulLabel,
                                                           linewidth=2.0))[0]
         # statistics of the population
@@ -420,44 +445,48 @@ class tcrPlotter:
         """
         set new data on the plot without stealing the focus
         """
-        if iPdc == None:
-            pdcRange = range(self.nPdcMax)
-        else:
-            pdcRange = [iPdc]
-
-        for iPdc in pdcRange:
-            if not self.pdcValid[iPdc]:
-                # PDC is not valid, remove it from the legend
-                self.hscatterTcr[iPdc].set_label(s='')
-                self.linePopu[iPdc].set_label(s='')
-
+        if self.current_pixel_index >= 0:
+            if iPdc == None:
+                pdcRange = range(self.nPdcMax)
             else:
-                # update scatter
-                self.hscatterTcr[iPdc].set_label(s=self.label[iPdc])
-                self.hscatterTcr[iPdc].set_offsets(np.c_[self.spadIdx, self.spadTcr[iPdc]])
+                pdcRange = [iPdc]
 
-                # update histo
-                avg = np.mean(self.spadPop[iPdc])
-                med = statistics.median(self.spadPop[iPdc])
-                self.linePopu[iPdc].set_label(s=f"{self.label[iPdc]: <12} {avg: <12.1f} {med: <12.1f}")
-                self.linePopu[iPdc].set_data(np.array(self.spad100[iPdc]),
-                                            np.array(self.spadPop[iPdc]))
+            for iPdc in pdcRange:
+                if not self.pdcValid[iPdc]:
+                    # PDC is not valid, remove it from the legend
+                    self.hscatterTcr[iPdc].set_label(s='')
+                    self.linePopu[iPdc].set_label(s='')
 
-        # cumul of all PDCs
-        avg = np.mean(self.spadCumulHis)
-        med = statistics.median(self.spadCumulHis)
-        self.lineCumul.set_label(s=f"{self.lineCumulLabel: <12} {avg: <12.1f} {med: <12.1f}")
-        self.lineCumul.set_data(np.array(self.spadCumul100),
-                                np.array(self.spadCumulHis))
-        # cumul stats lines
-        avgCumul = np.mean(self.spadCumulHis)
-        self.lineCumulAvg.set_ydata([avgCumul, avgCumul])
-        medCumul = statistics.median(self.spadCumulHis)
-        self.lineCumulMed.set_ydata([medCumul, medCumul])
+                else:
+                    # update scatter
+                    self.hscatterTcr[iPdc].set_label(s=self.label[iPdc])
+                    scatterMax = min(len(self.spadIdx), len(self.spadTcr[iPdc])) # thread safe helper
+                    self.hscatterTcr[iPdc].set_offsets(np.c_[self.spadIdx[:scatterMax], self.spadTcr[iPdc][:scatterMax]]) #
 
-        # set new limits
-        set_lim(self.axes.flat[self.axTcr], self.spadTcr)
-        set_lim(self.axes.flat[self.axPop], self.spadPop)
+                    # update histo
+                    avg = np.mean(self.spadPop[iPdc])
+                    med = statistics.median(self.spadPop[iPdc])
+                    self.linePopu[iPdc].set_label(s=f"{self.label[iPdc]: <12} {avg: <12.1f} {med: <12.1f}")
+                    popMax = min(len(self.spad100[iPdc]), len(self.spadPop[iPdc])) # thread safe helper
+                    self.linePopu[iPdc].set_data(np.array(self.spad100[iPdc][:popMax]),
+                                                np.array(self.spadPop[iPdc][:popMax])) #
+
+            # cumul of all PDCs
+            avg = np.mean(self.spadCumulPop)
+            med = statistics.median(self.spadCumulPop)
+            self.lineCumul.set_label(s=f"{self.lineCumulLabel: <12} {avg: <12.1f} {med: <12.1f}")
+            cumulIdx = min(len(self.spadCumul100), len(self.spadCumulPop)) # thread safe helper
+            self.lineCumul.set_data(np.array(self.spadCumul100[:cumulIdx]),
+                                    np.array(self.spadCumulPop[:cumulIdx])) #
+            # cumul stats lines
+            avgCumul = np.mean(self.spadCumulPop)
+            self.lineCumulAvg.set_ydata([avgCumul, avgCumul])
+            medCumul = statistics.median(self.spadCumulPop)
+            self.lineCumulMed.set_ydata([medCumul, medCumul])
+
+            # set new limits
+            set_lim(self.axes.flat[self.axTcr], self.spadTcr)
+            set_lim(self.axes.flat[self.axPop], self.spadPop)
 
         self.updateLegend()
         self.pausePlot(pauseTime=0.001)
@@ -473,6 +502,7 @@ class tcrPlotter:
             # no valid data
             self.pdcValid[iPdc] = False
             self.spadEn[iPdc] -= 1
+            self.spadDis[iPdc] += 1
             return
         self.pdcValid[iPdc] = True
 
@@ -482,14 +512,15 @@ class tcrPlotter:
         self.spadPop[iPdc].sort()
         self.spad100[iPdc] = np.linspace(0, 100.0, len(self.spadPop[iPdc]))
 
-        self.spadCumulHis.append(avg)
-        self.spadCumulHis.sort()
-        self.spadCumul100 = np.linspace(0, 100.0, len(self.spadCumulHis))
+        self.spadCumulPop.append(avg)
+        self.spadCumulPop.sort()
+        self.spadCumul100 = np.linspace(0, 100.0, len(self.spadCumulPop))
 
         if avg != avgTh:
             # SPAD count is different than threshold
             print(f"{fgColors.red}Disabling SPAD {iSpad} on PDC {iPdc}{fgColors.endc}")
             self.spadEn[iPdc] -= 1
+            self.spadDis[iPdc] += 1
 
     def saveData(self):
         """
@@ -541,8 +572,9 @@ class tcrPlotter:
         check figure by name if it still exists
         """
         if not plt.fignum_exists(self.figName):
-            print("\nFigure closed: exit program")
-            sys.exit()
+            print("\nFigure closed...")
+            #sys.exit()
+            raise SystemExit
 
 
     def pausePlot(self, pauseTime=0.001):
@@ -598,15 +630,17 @@ def measTrgRate(iPix, measTime, numPdc):
     4- send a Controller data packet with ZPP data
     5- wait to receive the file, fetch the ZPP data and close it
     """
-    client.runPrint(f"pdcPix --dis --index {iPix} --mode NONE")
+    client.runPrint(f"pdcPix --dis --index {iPix} --mode NONE; sleep 0.001")
     N_SPAD = [1]*numPdc
 
-    client.runPrint("ctlCmd -c MODE_TRG")
-    client.runPrint("ctlCmd -c RSTN_ZPP")
-    time.sleep(0.001)
-    client.runSleep(f"ctlCfg -a TRGN -r 0x{0x8000+N_TRG:04x}", msSleep=measTime)
-    client.runPrint("ctlCmd -c MODE_ACQ")
-    client.runPrint("ctlCmd -c PACK_TRG_A")
+    # all regrouped into a single command to remove host system execution time
+    client.runPrint("ctlCmd -c MODE_TRG; " \
+                    "ctlCmd -c RSTN_ZPP; " \
+                    f"sleep {measTime/3.0:.06f}; " \
+                    f"ctlCfg -a TRGN -r 0x{0x8000+N_TRG:04x}; " \
+                    f"sleep {2.0*measTime/3.0:.06f}; " \
+                    "ctlCmd -c MODE_ACQ; " \
+                    "ctlCmd -c PACK_TRG_A; ")
 
     # wait for the HDF5 result file
     db = waitForH5File()
@@ -624,6 +658,36 @@ def measTrgRate(iPix, measTime, numPdc):
     db.h5Close()
 
     return TOT
+
+
+# ---------------------------------------
+# --- data acquisition as a thread
+# ---------------------------------------
+run_thread = True
+def test_all_pixels(tp: tcrPlotter, update=False):
+    if type(tp) == type(None):
+        print(f"{fgColors.red}ERROR: tcrPlotter object must be created first{fgColors.endc}")
+        sys.exit()
+
+    # acquire data
+    for iPix in range(0, icp.nSpad, pixStep):
+        if not tp.run:
+            break
+        TOT = measTrgRate(iPix=iPix,
+                        measTime=measTime,
+                        numPdc=icp.nPdcMax)
+        for iPdc in range(0, icp.nPdcMax):
+            # put new data into data object
+            tp.newData(iPdc, iPix, TOT[iPdc], N_TRG)
+
+        tp.current_pixel_index = iPix
+
+        if update:
+            tp.updatePlot()
+
+    # indicate all tests are completed
+    tp.done_test_all_pixels = True
+
 
 
 # ---------------------------------------
@@ -648,26 +712,22 @@ try:
     sectionPrint("Pixel responsiveness logic")
 
     # 1 - loop for each pixel to get its number of triggers and list pixels to disable
-    for iPix in range(0, icp.nSpad, pixStep):
-        TOT = measTrgRate(iPix=iPix,
-                          measTime=measTime,
-                          numPdc=icp.nPdcMax)
-        for iPdc in range(0, icp.nPdcMax):
-            # put new data into data object
-            tp.newData(iPdc, iPix, TOT[iPdc], N_TRG)
+    if run_thread:
+        # running as a thread
+        thread_test = threading.Thread(target=test_all_pixels, args=[tp])
+        thread_test.start()
 
-            # update plot (using updatePlot here will update for each PDC)
-            # It takes test time on each plot update
-            #tp.updatePlot(iPdc=iPdc)
-
-        # update plot (once per measure for all the PDCs)
-        tp.updatePlot()
+        while not tp.done_test_all_pixels:
+            tp.updatePlot()
+    else:
+        # running everything in the main
+        test_all_pixels(tp=tp, update=True)
 
     # 2- Number of good pixel per PDC
     sectionPrint("Number of good pixel per PDC")
     for iPdc in range(0, icp.nPdcMax):
         if tp.pdcValid[iPdc]:
-            print(f"PDC {iPdc} has {tp.spadEn[iPdc]} enabled SPADs")
+            print(f"PDC {iPdc} has {tp.spadDis[iPdc]} disabled SPADs")
 
     # export data
     tp.saveData()
@@ -678,10 +738,17 @@ try:
     print(f"{fgColors.bBlue}Test took {test_stop_time-test_start_time:.3f} seconds{fgColors.endc}")
     print(f"{fgColors.bBlue}Test completed, to exit, close figure{fgColors.endc}")
     plt.show(block=True)
-    print("\nFigure closed: exit program")
+    print("\nFigure closed... exit program")
 
-except KeyboardInterrupt:
-    print("\nKeyboard Interrupt: exit program")
+except (KeyboardInterrupt, SystemExit) as ex:
+    if "tp" in locals():
+        tp.run = False
+    if "thread_test" in locals():
+        thread_test.join()
+    if isinstance(ex, KeyboardInterrupt):
+        print(f"\n{fgColors.yellow}Keyboard Interrupt: exit program{fgColors.endc}")
+    else:
+        print(f"\n{fgColors.yellow}Program interrupted: exit program{fgColors.endc}")
 
 finally:
     if not 'test_stop_time' in locals():

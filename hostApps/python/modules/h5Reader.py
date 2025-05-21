@@ -14,6 +14,7 @@
 import os, sys
 from pathlib import Path
 import time
+from time import sleep as timeSleep
 import pandas as pd
 import h5py
 import numpy as np
@@ -157,6 +158,7 @@ class h5Reader:
         self.h5 = None
         self.deleteAfter = deleteAfter
         self.scripts_path = os.path.dirname(__file__)
+        self.parsedH5 = []
         if not hfRelPath == "":
             # relative path
             self.hdf5_path = os.path.join(self.scripts_path, hfRelPath, "")
@@ -230,13 +232,17 @@ class h5Reader:
                 # file is not ready
                 continue
 
+            # Reduce list to 5 files to save memory when not deleting after reading
+            if len(self.parsedH5) > 5 and not self.deleteAfter:
+                self.parsedH5 = self.parsedH5[-5:]
+
             # for each file in order, check if file is not empty
             if (os.path.getsize(pathName) > 0):
                 # check if file has already been written to
-                if (pathName not in parsedH5):
+                if (pathName not in self.parsedH5):
                     # save filename to prevent reading it multiple times
                     #print(fileName)
-                    parsedH5.append(pathName)
+                    self.parsedH5.append(pathName)
                     return pathName
         # no new file to parse
         return ""
@@ -255,7 +261,7 @@ class h5Reader:
         self.hfFile = self.getLastH5()
 
         while self.hfFile == "" and time.time() - start_time < timeout_sec :
-            time.sleep(1)
+            timeSleep(0.001)
             self.hfFile = self.getLastH5()
 
         return self.hfFile
@@ -267,7 +273,22 @@ class h5Reader:
         """
         if self.h5 == None:
             dbgPrint(f"Opening file {self.hfFile}")
-            self.h5 = h5py.File(self.hfFile, 'r+')
+            try:
+                self.h5 = h5py.File(self.hfFile, 'r+')
+            except BlockingIOError as ex:
+                """
+                [Errno 11] Unable to open file
+                (unable to lock file, errno = 11,
+                error message = 'Resource temporarily
+                unavailable')
+                """
+                dbgPrint(f"File busy")
+                timeSleep(0.001)
+                try:
+                    self.h5 = h5py.File(self.hfFile, 'r+')
+                except BlockingIOError as ex:
+                    dbgPrint(f"File still busy")
+                    self.h5 = None # make sure it is still set to None
         return self.h5 != None
 
     def h5Close(self):
@@ -289,7 +310,8 @@ class h5Reader:
         if not previously set
         """
         if not self.HDF_TRANSMIT:
-            self.HDF_TRANSMIT = self.h5.get('TRANSMIT/')
+            if type(self.h5) != type(None):
+                self.HDF_TRANSMIT = self.h5.get('TRANSMIT/')
         if self.HDF_TRANSMIT and not self.HDF_CTL:
             for key in self.HDF_TRANSMIT.keys():
                 if "CTL" in key:
@@ -306,7 +328,18 @@ class h5Reader:
             # no Controller in the file
             print(f"ERROR: no Controller found")
             return [None, None]
-        PDC_DSUM = self.HDF_CTL.get(f"PDC/PDC_{iPdc:02d}/PDC_DATA/DGTL_SUM/DGTL_SUM")
+        # default value if execution fails
+        PDC_DSUM = None
+        try:
+            PDC_DSUM = self.HDF_CTL.get(f"PDC/PDC_{iPdc:02d}/PDC_DATA/DGTL_SUM/DGTL_SUM")
+        except ValueError as ex:
+            dbgPrint("getDsumError: retrying")
+            timeSleep(0.001)
+            try:
+                PDC_DSUM = self.HDF_CTL.get(f"PDC/PDC_{iPdc:02d}/PDC_DATA/DGTL_SUM/DGTL_SUM")
+            except ValueError as ex:
+                dbgPrint("getDsumError: aborting")
+            
         if PDC_DSUM == None:
             #print(f"ERROR: no PDC DGTL_SUM found for PDC {iPdc}")
             return [None, None]
