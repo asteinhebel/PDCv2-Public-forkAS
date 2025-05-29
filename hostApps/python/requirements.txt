@@ -7,3 +7,4 @@ sshconf
 h5py
 pandas
 pytest
+PyYAML
