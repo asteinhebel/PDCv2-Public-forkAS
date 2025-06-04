@@ -48,6 +48,8 @@ def plotMedians(meds, vals_full,save):
     plt.title(name)
     plt.xlabel('Scan value')
     plt.ylabel('Median TCR')
+    if name=="holdoff":
+        plt.xscale('log')
     if save:
         plt.savefig(f'plots/timing_{name}_TCR__medians.png')
     else:
