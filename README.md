@@ -19,7 +19,7 @@ Here are the list of the steps required to get the setup up and running.
 2. Fetch the `img.tar.gz` file from the release tab of this repo then extract. This archive contains the `*debian_image.img` to flash your SD with.
 3. Flash the SD card with the image `*debian_image.img` provided in the repo. This can be done with [balenaEtcher](https://etcher.balena.io/) or other equivalent programs/tools.
 4. Insert the SD card in your ZCU102 board and connect it via Ethernet to the host. Power-it on. 
-5. Run the script `setupHosts/setup.sh` to install required packages and configure the host computer. Feel free to look at it to understand what has been installed and configured on you PC. After this has run, you should be able to communicate with the ZCU102 board and FPGA and connect to it by running `ssh zcudev`.
+5. Run the script `setupHosts/setup.sh` to install required packages and configure the host computer. Feel free to look at it to understand what has been installed and configured on you PC. After this has run, you should be able to communicate with the ZCU102 board and FPGA and connect to it by running `ssh zcudev`. If the PC cannot support both an internet and FPGA connection, then run `setup.sh` with the arguments `--packages --python_env_creation` while connected to the internet first. This will download and install necessary files. Then connect to the FPGA and rerun the full setup script.
 6. Activate the created python environment: `source ~/venv_pdcv2/bin/activate`.
 7. To test communication with your PDCs, connect the heads using the blue cables to the adaptor board, power-on the adaptor boards, and run the test script `hostApps/python/validatePDCCommunication.py`. 
 You can do so by placing the power switch towards the ZCU102 ([view image](documentation/images/adaptor_board.jpg)). 
@@ -62,4 +62,10 @@ These should help you visualize incoming information from your PDC and develop n
 New scripts might come in the future to help you develop more complex setups, either developped by the team at Sherbrooke or other user of the platform.
 
 
+## Updating your board
+
+After a new release has been published, if the the major or minor version from the release (Major.Minor.Patch) version has changend, you will need to update your board with the new image.
+To do so simply download the file from the release tab of this repo and extract it, as you did when getting starting.
+After flashing the SD card, its content have been wiped so you will need to re-register your RSA key used for SSH connection.
+You can do so by using the script provided and specifying the argument: `setupHosts/setup.sh --ssh_rsa_config`.
 
