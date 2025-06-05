@@ -23,6 +23,7 @@ import datetime
 from itertools import chain
 import statistics
 import matplotlib.pyplot as plt
+import yaml
 
 # custom modules
 from modules.fgColors import fgColors
@@ -35,6 +36,15 @@ from modules.systemHelper import sectionPrint
 from modules.pdcHelper import *
 #from modules.zynqHelper import *
 from modules.h5Reader import *
+
+
+# -----------------------------------------------
+# --- parse configuration values from YAML
+# -----------------------------------------------
+with open('config_all.yaml','r') as f:
+    config_in = yaml.safe_load(f)
+    pdcConfig_in = config_in['pdcConfig']
+    dataConfig_in = config_in['dataConfig']
 
 # -----------------------------------------------
 # --- open a connection with the ZCU102 board
@@ -60,7 +70,7 @@ zynq.init()
 #       pdcEn=0x4 -> PDC2
 #       pdcEn=0x8 -> PDC3
 #       pdcEn=0xF -> PDC0, PDC1, PDC2, PDC3
-icp = initCtlPdcFromClient(client=client, sysClkPrd=10e-9, pdcEn=0xF)
+icp = initCtlPdcFromClient(client=client, sysClkPrd=10e-9, pdcEn=pdcConfig_in['pdcAcq'])
 
 # -----------------------------------------------
 # --- set system clock period
@@ -82,14 +92,15 @@ icp.resetCtl()
     # 0x2000 = PDC_STATUS
     # 0x1000 = PDC_STATUS_ALL
     # 0x0007 = ALL CTL_STATUS
-SCSA = 0x0000
+#SCSA = 0x0000
 # configure CTL_DATA_A
-SCDA = 0x0000
+#SCDA = 0x0000
 # configure PDC_DATA_A
     # 0x0100 = DSUM
     # 0x00F7 = ZPP
-SPDA = 0x00F7
-icp.setCtlPacket(bank=packetBank.BANKA, SCS=SCSA, SCD=SCDA, SPD=SPDA)
+#SPDA = 0x00F7
+#icp.setCtlPacket(bank=packetBank.BANKA, SCS=SCSA, SCD=SCDA, SPD=SPDA)
+icp.setCtlPacket(bank=packetBank.BANKA, SCS=pdcConfig_in['registers']['scsa'], SCD=pdcConfig_in['registers']['scda'], SPD=pdcConfig_in['registers']['spda'])
 
 # -----------------------------------------------
 # --- set delay of CFG_DATA pins
@@ -144,10 +155,10 @@ PDC_SETTING.PIXL = PIXL
 
 # === TIME REGISTER ===
 print("\n=== TIME REGISTER ===")
-HOLD_TIME = 150.0
-RECH_TIME = 10.0
-FLAG_TIME = 10.0
-client.runPrint(f"pdcTime --hold {HOLD_TIME} --rech {RECH_TIME} --flag {FLAG_TIME} -g")
+#HOLD_TIME = 150.0
+#RECH_TIME = 10.0
+#FLAG_TIME = 10.0
+client.runPrint(f"pdcTime --hold {pdcConfig_in['registers']['hold_time']} --rech {pdcConfig_in['registers']['recharge_time']} --flag {pdcConfig_in['registers']['flag_time']} -g")
 PDC_SETTING.TIME = client.runReturnSplitInt('pdcTime -g')
 
 
@@ -194,13 +205,15 @@ print("\n=== DISABLE ALL THE PIXELS ===")
     #       if mode is not specified
 client.runPrint("pdcPix --dis --mode NONE")
 
-# Enable some pixels
-print("\n=== ENABLE SOME PIXELS ===")
+# Enable all good pixels, ignore screamersf
+print("\n=== ENABLE ALL GOOD PIXELS ===")
 # NOTE: see pdcPix app help to see available options
-pixIndex = 0
-client.runPrint(f"pdcPix --index {pixIndex} --mode NONE")
-#AS - replace L201 with output from getSpadTcrUsingFlag
-#client.runPrint(f"pdcSpad --pattern 0x{spadEnPattern:016x} --mode NONE")
+#pixIndex = 0
+#client.runPrint(f"pdcPix --index {pixIndex} --mode NONE")
+client.runPrint(f"pdcSpad --pattern {pdcConfig_in['pattern']['pdc0']} --pdc 0 --mode NONE")
+client.runPrint(f"pdcSpad --pattern {pdcConfig_in['pattern']['pdc1']} --pdc 1 --mode NONE")
+client.runPrint(f"pdcSpad --pattern {pdcConfig_in['pattern']['pdc2']} --pdc 2 --mode NONE")
+client.runPrint(f"pdcSpad --pattern {pdcConfig_in['pattern']['pdc3']} --pdc 3 --mode NONE")
 
 # === VALIDATE CONFIGURATIONS ===
 print("\n=== VALIDATE CONFIGURATIONS ===")

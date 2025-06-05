@@ -1,0 +1,41 @@
+###########################################################################
+#
+# PDC Configuration
+#
+###########################################################################
+pdcConfig:
+  #Values -- 0x1 = PDC0, 0x2 = PDC1, 0x4=PDC2, 0x8=PDC3, 0xF=all PDCs
+  pdcAcq: 0xF
+
+  registers:
+    #Configure CFG_STATUS_A
+    #Values -- 0x8000 = PDC_CFG, 0x4000 = CTLCFG, 0x2000 = PDC_STATUS, 0x1000 = PDC_STATUS_ALL, 0x0007 - ALL CTL_STATUS
+    scsa: 0x0000 
+    #Configure CTL_DATA_A
+    #Values --
+    scda: 0x00000
+    #Configure PDC_DATA_A
+    #Values -- 0x0100 = DSUM, 0x00F7 = ZPP
+    spda: 0x00F7
+    #Values -- 14.1 - 18100 [ns]
+    hold_time: 150.0
+    #Values -- 3.4 - 58.6 [ns]
+    recharge_time: 10.0
+    #Vaues -- 1.6 - 55.3 [ns]
+    flag_time: 10.0
+
+  pattern:
+    pdc0: "0xffffffffffffffff"
+    pdc1: "0xffffffffffffffff"
+    pdc2: "0xffffffffffffffff"
+    pdc3: "0xffffffffffffffff"
+
+###########################################################################
+#
+# Analysis/Visualization Configuration
+#
+###########################################################################
+dataConfig:
+  name: "TEST" #addition to the end of the name string, for CSV data file
+  measTime: 0.2 #[s], for getSpadTcrUsingFlag
+  savePlot: 1 #BOOL value: 0=False, 1=True
