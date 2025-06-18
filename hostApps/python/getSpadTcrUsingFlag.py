@@ -29,6 +29,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import warnings
 import threading
+import yaml
 
 # custom modules
 from modules.fgColors import fgColors
@@ -43,6 +44,18 @@ from modules.pdcHelper import *
 #from modules.zynqHelper import *
 from modules.h5Reader import *
 
+
+# -----------------------------------------------
+# --- parse configuration values from YAML
+# -----------------------------------------------
+with open('config_all.yaml','r') as f:
+    config_in = yaml.safe_load(f)
+    pdcConfig_in = config_in['pdcConfig']
+    dataConfig_in = config_in['dataConfig']
+
+# -----------------------------------------------
+# --- 
+# ----------------------------------------------- 
 try:
     scriptName = os.path.basename(__file__)
 except NameError:
@@ -58,7 +71,7 @@ test_start_time = time.time()
 tp = None
 
 # time to wait for each setting
-measTime = 0.2  # second
+measTime = dataConfig_in['measTime']
 
 # -----------------------------------------------
 # --- open a connection with the ZCU102 board
@@ -77,7 +90,7 @@ zynq.init()
 # -----------------------------------------------
 # --- prepare controller for acquisition
 # -----------------------------------------------
-icp = initCtlPdcFromClient(client=client, sysClkPrd=10e-9, pdcEn=0xF)
+icp = initCtlPdcFromClient(client=client, sysClkPrd=10e-9, pdcEn=pdcConfig_in['pdcAcq'])
 
 
 # -----------------------------------------------
@@ -94,20 +107,7 @@ icp.resetCtl()
 # --- configure controller packet
 # -----------------------------------------------
 # NOTE always set SCSA register first to store other configuration registers in HDF5
-# configure CFG_STATUS_A
-    # 0x8000 = PDC_CFG
-    # 0x4000 = CTL_CFG
-    # 0x2000 = PDC_STATUS
-    # 0x1000 = PDC_STATUS_ALL
-    # 0x0007 = ALL CTL_STATUS
-SCSA = 0x0000
-# configure CTL_DATA_A
-SCDA = 0x0000
-# configure PDC_DATA_A
-    # 0x0100 = DSUM
-    # 0x00F7 = ZPP
-SPDA = 0x00F7
-icp.setCtlPacket(bank=packetBank.BANKA, SCS=SCSA, SCD=SCDA, SPD=SPDA)
+icp.setCtlPacket(bank=packetBank.BANKA, SCS=pdcConfig_in['registers']['scsa'], SCD=pdcConfig_in['registers']['scda'], SPD=pdcConfig_in['registers']['spda'])
 
 # -----------------------------------------------
 # --- set delay of CFG_DATA pins
@@ -161,10 +161,7 @@ PDC_SETTING.PIXL = PIXL
 
 # === TIME REGISTER ===
 print("\n=== TIME REGISTER ===")
-HOLD_TIME = 150.0
-RECH_TIME = 10.0
-FLAG_TIME = 10.0
-client.runPrint(f"pdcTime --hold {HOLD_TIME} --rech {RECH_TIME} --flag {FLAG_TIME} -g")
+client.runPrint(f"pdcTime --hold {pdcConfig_in['registers']['hold_time']} --rech {pdcConfig_in['registers']['recharge_time']} --flag {pdcConfig_in['registers']['flag_time']} -g")
 PDC_SETTING.TIME = client.runReturnSplitInt('pdcTime -g')
 
 
@@ -275,7 +272,7 @@ client.run(f"ctlCfg -a FSMM -r 0x0101 -g"); # triggered by a COMMAND
 # --- Class to generate the display of the results
 # --------------------------------------------------
 class tcrPlotter:
-    def __init__(self, figName, nPdcMax, nSpad, doSavePlot=False, dataPath="default"):
+    def __init__(self, figName, nPdcMax, nSpad, doSavePlot=False, dataPath="default", saveFinalPlot=False):
         """
         create an empty object with no data, but with figure properly formatted
         """
@@ -310,21 +307,23 @@ class tcrPlotter:
         self.axPop = 1
 
         self.doSavePlot=doSavePlot
+        self.saveFinalPlot=saveFinalPlot
         self.plotIdx = 0
         self.fig = None
         self.dateStrPlot = datetime.datetime.now().strftime("%Y%m%d_%Hh%Mm%S")
+        self.name = "_"+dataConfig_in['name'] if len(dataConfig_in['name'])>0 else ""
+        self.saveTime = None
 
         # path to save CSV data
         if dataPath != "default" and os.path.isDir(dataPath):
             self.dataPath = dataPath
         else:
             # default path
-            #self.dataPath = os.path.join('.', 'TCR')
             self.dataPath = os.path.join(USER_DATA_DIR, 'TCR')
         # add script name to path
         self.dataPath = Path(os.path.join(self.dataPath, os.path.splitext(scriptName)[0]))
-        # path to save plot
-        self.plotPath = Path(os.path.join(self.dataPath, 'FIG', self.dateStrPlot))
+        # path to save plots 
+        self.plotPath = Path(os.path.join(self.dataPath, 'FIG')) if self.saveFinalPlot else Path(os.path.join(self.dataPath, 'FIG', self.dateStrPlot)) 
 
         # init plot
         self.initPlot()
@@ -596,6 +595,8 @@ class tcrPlotter:
         save data to a CSV file
         """
         dateStr=datetime.datetime.now().strftime("%Y%m%d_%Hh%Mm%S")
+        if self.saveTime == None:
+            self.saveTime = dateStr
         pdcStr=""
         df = pd.DataFrame()
         for iPdc in range(0, self.nPdcMax):
@@ -617,7 +618,7 @@ class tcrPlotter:
 
         if df.size > 0:
             # if there are data to export
-            filename = f"{dateStr}_TCR_{pdcStr}_{int(measTime*1000):d}ms.csv"
+            filename = f"{dateStr}_TCR_{pdcStr}_{int(measTime*1000):d}ms{self.name}.csv"
             self.dataPath.mkdir(parents=True, exist_ok=True)
             datafile = os.path.join(self.dataPath, filename)
             print(f"{fgColors.green}Saving data to file {datafile}{fgColors.endc}")
@@ -627,12 +628,15 @@ class tcrPlotter:
         """
         save plot to a png file
         """
-        if self.fig and self.doSavePlot:
+        if (self.fig and self.doSavePlot) or (self.fig and self.saveFinalPlot):
             if iPdc == None or self.pdcValid[iPdc]:
-                filename = f"TCR_{self.plotIdx:06d}.png"
+                if self.saveFinalPlot:
+                    filename = f"TCR_{self.saveTime}{self.name}.png"
+                else:
+                    filename = f"TCR_{self.plotIdx:06d}{self.name}.png"
                 self.plotPath.mkdir(parents=True, exist_ok=True)
                 datafile = os.path.join(self.plotPath, filename)
-                print(f"saving plot to file {datafile}")
+                print(f"{fgColors.green}Saving plot to file {datafile}{fgColors.endc}")
                 self.fig.savefig(datafile)
                 self.plotIdx += 1
 
@@ -642,7 +646,6 @@ class tcrPlotter:
         """
         if not plt.fignum_exists(self.figName):
             print("\nFigure closed...")
-            #sys.exit()
             raise SystemExit
 
 
@@ -821,7 +824,8 @@ try:
     tp = tcrPlotter(figName="TCR PLOTTER",
                     nPdcMax=icp.nPdcMax,
                     nSpad=icp.nSpad,
-                    doSavePlot=False)
+                    doSavePlot=False,
+                    saveFinalPlot=dataConfig_in['savePlot'])
 
     # ---------------------------------------
     # --- SPAD count rate logic
@@ -838,7 +842,6 @@ try:
             tp.updatePlot()
         # update a last time
         tp.updatePlot()
-
     else:
         test_all_pixels(tp=tp, update=True)
 
@@ -959,8 +962,10 @@ try:
                     pdcSpadCmd = f"pdcPix --addr {addr} --reg 0x{register:04x} --spdc {iPdc} --mode NONE"
                     client.runPrint(pdcSpadCmd)
 
-    # export data
-    tp.saveData()
+    # export data and plot, if applicable
+    tp.saveData()   
+    if dataConfig_in['savePlot']:
+        tp.savePlot()
 
     # total execution time
     test_stop_time = time.time()
