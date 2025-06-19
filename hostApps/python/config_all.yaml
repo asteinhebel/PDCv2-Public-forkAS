@@ -5,6 +5,7 @@
 ###########################################################################
 pdcConfig:
   #Values -- 0x1 = PDC0, 0x2 = PDC1, 0x4=PDC2, 0x8=PDC3, 0xF=all PDCs
+  # NOTE for getSpadTcrUcrCcrUsingFlag: a single PDC at the time gives better results
   pdcAcq: 0xF
 
   registers:
@@ -37,5 +38,12 @@ pdcConfig:
 ###########################################################################
 dataConfig:
   name: "TEST" #addition to the end of the name string, for CSV data file
-  measTime: 0.2 #[s], for getSpadTcrUsingFlag
   savePlot: 1 #BOOL value: 0=False, 1=True
+
+  #### SCRIPT SPECIFIC - ignore for scripts not being used####
+  #getSpadTcrUsingFlag AND getSpadTcrUcrCcrUsingFlag
+  #defaults: 0.2, 0.1 respectively 
+  measTime: 0.2 #[s]
+
+  #getSpadTcrUcrCcrUsingFlag
+  nZppCycles: 5000 
