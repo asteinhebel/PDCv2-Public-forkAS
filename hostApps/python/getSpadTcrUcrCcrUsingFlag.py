@@ -327,6 +327,8 @@ class zppPlotter:
         self.dataPath = Path(os.path.join(self.dataPath, os.path.splitext(scriptName)[0]))
         # path to save plot
         self.plotPath = Path(os.path.join(self.dataPath, 'FIG', self.dateStrPlot))if self.saveFinalPlot else Path(os.path.join(self.dataPath, 'FIG', self.dateStrPlot)) 
+        # path to save yaml 
+        self.yamlPath = Path(os.path.join(self.dataPath, 'YAML'))  
 
         # init plot
         self.initPlot()
@@ -586,6 +588,16 @@ class zppPlotter:
                 self.fig.savefig(datafile)
                 self.plotIdx += 1
 
+    def saveYaml(self):
+        """
+        dump config values to a yml file
+        """
+        filename = f"TCR_{self.saveTime}{self.name}.yml"
+        self.yamlPath.mkdir(parents=True, exist_ok=True)
+        datafile = os.path.join(self.yamlPath, filename)
+        print(f"{fgColors.green}Saving config to file {datafile}{fgColors.endc}")
+        yaml.dump(config_in, filename, default_flow_style=False)
+
     def checkExit(self):
         """
         check figure by name if it still exists
@@ -801,6 +813,8 @@ try:
     zp.saveData()
     if dataConfig_in['savePlot']:
         tp.savePlot()
+    if dataConfig_in['saveYaml']:
+        tp.saveYaml()
 
     # total execution time
     test_stop_time = time.time()

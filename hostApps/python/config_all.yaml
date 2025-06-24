@@ -39,6 +39,7 @@ pdcConfig:
 dataConfig:
   name: "TEST" #addition to the end of the name string, for CSV data file
   savePlot: 1 #BOOL value: 0=False, 1=True
+  saveYaml: 1 #BOOL value: 0=False, 1=True
 
   #### SCRIPT SPECIFIC - ignore for scripts not being used####
   #getSpadTcrUsingFlag AND getSpadTcrUcrCcrUsingFlag

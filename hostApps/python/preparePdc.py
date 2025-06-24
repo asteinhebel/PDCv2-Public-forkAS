@@ -240,6 +240,15 @@ PDC_SETTING.print()
 sectionPrint("return PDCs to acquisition mode")
 client.runPrint(f"ctlCmd -c MODE_ACQ")
 
+# dump config to yaml, if selected
+if dataConfig_in['saveYaml']:
+    datapath = os.path.join(USER_DATA_DIR, 'PREP', 'YAML')
+    datapath.mkdir(parents=True, exist_ok=True)
+    filename = f"{datetime.datetime.now().strftime}.yml"
+    datafile = os.path.join(datapath, filename)
+    print(f"{fgColors.green}Saving config to file {datafile}{fgColors.endc}")
+    yaml.dump(config_in, filename, default_flow_style=False)
+
 # ready to operate
 print("\n=== READY TO OPERATE ===")
 # NOTE: Implement here a specific routine
