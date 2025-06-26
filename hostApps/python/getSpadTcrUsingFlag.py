@@ -423,7 +423,7 @@ class tcrPlotter:
         self.axes.flat[self.axTcr].legend()
         self.axes.flat[self.axPop].legend(loc="upper left", title=f"{'': <26} {'avg': <14} {'med': <14}")
 
-    def updatePlot(self, iPdc=None):
+    def updatePlot(self, iPdc=None, final:bool=False):
         """
         set new data on the plot without stealing the focus
         """
@@ -472,7 +472,7 @@ class tcrPlotter:
 
         self.updateLegend()
         self.pausePlot(pauseTime=0.001)
-        self.savePlot(iPdc=iPdc)
+        self.savePlot(iPdc=iPdc, final=False)
         self.checkExit()
 
 
@@ -626,11 +626,11 @@ class tcrPlotter:
             print(f"{fgColors.green}Saving data to file {datafile}{fgColors.endc}")
             df.to_csv(datafile, sep=';', index=False, float_format="%.3E")
 
-    def savePlot(self, iPdc=None):
+    def savePlot(self, iPdc=None, final:bool=False):
         """
         save plot to a png file
         """
-        if (self.fig and self.doSavePlot) or (self.fig and self.saveFinalPlot):
+        if (self.fig and self.doSavePlot) or (self.fig and self.saveFinalPlot and final):
             if iPdc == None or self.pdcValid[iPdc]:
                 if self.saveFinalPlot:
                     filename = f"TCR_{self.saveTime}{self.name}.png"
@@ -650,7 +650,8 @@ class tcrPlotter:
         self.yamlPath.mkdir(parents=True, exist_ok=True)
         datafile = os.path.join(self.yamlPath, filename)
         print(f"{fgColors.green}Saving config to file {datafile}{fgColors.endc}")
-        yaml.dump(config_in, filename, default_flow_style=False)
+        with open(datafile, 'w') as outfile:
+            yaml.dump(config_in, outfile, default_flow_style=False)
 
     def checkExit(self):
         """
@@ -760,10 +761,13 @@ class LoopingMethod(IntEnum):
     rows_cols=1,
     index=2,
 
-def test_all_pixels(tp: tcrPlotter, update=False):
+def test_all_pixels(tp: tcrPlotter, update=False, numPdc=icp.nPdcMax):
     if type(tp) == type(None):
         print(f"{fgColors.red}tcrPlotter object must be created first{fgColors.endc}")
         sys.exit()
+
+    if tp.nPdcMax != numPdc:
+        numPdc = tp.nPdcMax
 
     # acquire data
     if icp.nSpad == 4096:
@@ -805,10 +809,10 @@ def test_all_pixels(tp: tcrPlotter, update=False):
                                   spadRow=spadRow,
                                   spadCol=spadCol,
                                   measTime=measTime,
-                                  numPdc=icp.nPdcMax)
+                                  numPdc=numPdc)
 
             # add new data for each PDC
-            for iPdc in range(0, icp.nPdcMax):
+            for iPdc in range(0, numPdc):
                 # put new data into data object
                 tp.newData(iPdc=iPdc,
                            iSpad=iSpad,
@@ -826,6 +830,8 @@ def test_all_pixels(tp: tcrPlotter, update=False):
 # --- Script main execution
 # ---------------------------------------
 sectionPrint("Script main execution")
+#define variable for testing
+nPdcTest = 4 #icp.nPdcMax
 try:
     # ---------------------------------------
     # --- Object to hold the plots
@@ -835,7 +841,7 @@ try:
     # It will then increase the test time.
     # Use it only to generate a .gif of the measures
     tp = tcrPlotter(figName="TCR PLOTTER",
-                    nPdcMax=icp.nPdcMax,
+                    nPdcMax=nPdcTest,
                     nSpad=icp.nSpad,
                     doSavePlot=False,
                     saveFinalPlot=dataConfig_in['savePlot'])
@@ -856,13 +862,13 @@ try:
         # update a last time
         tp.updatePlot()
     else:
-        test_all_pixels(tp=tp, update=True)
+        test_all_pixels(tp=tp, update=True, numPdc=nPdcTest)
 
     # 2- estimate the TCR of the array with all pixels enabled
     sectionPrint("Estimate the TCR of the array (all pixels)")
     # NOTE: This estimation does not consider that the TCR is obtained with the flag.
     #       If the SPADs TCR is too high, the flag will underestimate the TCR (pixels overlap)
-    for iPdc in range(0, icp.nPdcMax):
+    for iPdc in range(0, nPdcTest):
         if tp.pdcValid[iPdc]:
             nSpad = tp.countValidSpads(iPdc)
             print(f"  PDC {iPdc} total TCR = {tp.pdcTcrAll[iPdc]: <8} " \
@@ -879,9 +885,10 @@ try:
         medianToMin=4
 
     # store all tested threshold methods to later select the one to use
-    thresholdList = [[0]*len(ScreamerMethod) for _ in range(0, icp.nPdcMax)]
+    #thresholdList = [[0]*len(ScreamerMethod) for _ in range(0, nPdcTest)]
+    thresholdList = [[0]*nPdcTest for _ in range(0, len(ScreamerMethod))]
 
-    for iPdc in range(0, icp.nPdcMax):
+    for iPdc in range(0, nPdcTest):
         if not tp.pdcValid[iPdc]:
             continue
 
@@ -921,6 +928,7 @@ try:
         # enable/disable the pixels based on the distance from min to the median
         # NOTE: (median + (median - min)) = 2*median - min
         median = tp.getSpadMedTcr(iPdc)
+        thresholdList[ScreamerMethod.medianToMin][iPdc] = 1
         thresholdList[ScreamerMethod.medianToMin][iPdc] = 2.0*median-min(tp.spadTcr[iPdc])
         nSpadEnabled, spadEnabled = \
             tp.getSpadEnFromThreshold(  iPdc,
@@ -935,7 +943,7 @@ try:
     print(f"selected method is {method.name}")
 
     # estimate the TCR using the given parameters
-    for iPdc in range(0, icp.nPdcMax):
+    for iPdc in range(0, nPdcTest):
         if not tp.pdcValid[iPdc]:
             continue
         threshold = thresholdList[method][iPdc]
@@ -956,7 +964,7 @@ try:
 
     # 5- enable the selected SPADs
     sectionPrint("Enable the selected SPADs")
-    for iPdc in range(0, icp.nPdcMax):
+    for iPdc in range(0, nPdcTest):
         if not tp.pdcValid[iPdc]:
             continue
         # enable only the selected SPADs and print command (to copy to another script)
@@ -978,7 +986,7 @@ try:
     # export data and plot, if applicable
     tp.saveData()   
     if dataConfig_in['savePlot']:
-        tp.savePlot()
+        tp.savePlot(final=True)
     if dataConfig_in['saveYaml']:
         tp.saveYaml()
     
