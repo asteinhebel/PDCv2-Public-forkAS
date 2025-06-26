@@ -483,7 +483,7 @@ class zppPlotter:
             if updatePrev:
                 self.pdcValidPrev = self.pdcValid
 
-    def updatePlot(self):
+    def updatePlot(self, final:bool=False):
         """
         set new data on the plot without stealing the focus
         """
@@ -508,7 +508,7 @@ class zppPlotter:
 
         self.updateLegend()
         self.pausePlot(pauseTime=0.001)
-        self.savePlot()
+        self.savePlot(final=final)
         self.checkExit()
 
 
@@ -572,11 +572,11 @@ class zppPlotter:
             print(f"{fgColors.green}Saving data to file {datafile}{fgColors.endc}")
             df.to_csv(datafile, sep=';', index=False, float_format="%.3E")
 
-    def savePlot(self, iPdc=None):
+    def savePlot(self, iPdc=None, final:bool=False):
         """
         save plot to a png file
         """
-        if (self.fig and self.doSavePlot) or (self.fig and self.saveFinalPlot):
+        if (self.fig and self.doSavePlot) or (self.fig and self.saveFinalPlot and final):
             if iPdc == None or self.pdcValid[iPdc]:
                 if self.saveFinalPlot:
                     filename = f"TCR_{self.saveTime}{self.name}.png"
@@ -596,7 +596,8 @@ class zppPlotter:
         self.yamlPath.mkdir(parents=True, exist_ok=True)
         datafile = os.path.join(self.yamlPath, filename)
         print(f"{fgColors.green}Saving config to file {datafile}{fgColors.endc}")
-        yaml.dump(config_in, filename, default_flow_style=False)
+        with open(datafile, 'w') as outfile:
+            yaml.dump(config_in, outfile, default_flow_style=False)
 
     def checkExit(self):
         """
@@ -812,9 +813,9 @@ try:
     # export data
     zp.saveData()
     if dataConfig_in['savePlot']:
-        tp.savePlot()
+        zp.savePlot(final=True)
     if dataConfig_in['saveYaml']:
-        tp.saveYaml()
+        zp.saveYaml()
 
     # total execution time
     test_stop_time = time.time()

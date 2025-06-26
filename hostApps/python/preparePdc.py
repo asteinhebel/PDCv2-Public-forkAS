@@ -247,7 +247,8 @@ if dataConfig_in['saveYaml']:
     filename = f"{datetime.datetime.now().strftime}.yml"
     datafile = os.path.join(datapath, filename)
     print(f"{fgColors.green}Saving config to file {datafile}{fgColors.endc}")
-    yaml.dump(config_in, filename, default_flow_style=False)
+    with open(datafile, 'w') as outfile:
+        yaml.dump(config_in, outfile, default_flow_style=False)
 
 # ready to operate
 print("\n=== READY TO OPERATE ===")
