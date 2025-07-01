@@ -281,7 +281,7 @@ client.run(f"ctlCfg -a FSMM -r 0x0101 -g"); # triggered by a COMMAND
 # --- Class to generate the display of the results
 # --------------------------------------------------
 class zppPlotter:
-    def __init__(self, figName, nPdcMax, nSpad, optZppPer=True, doSavePlot=False, dataPath="default", saveFinalPlot=False):
+    def __init__(self, figName, nPdcMax, nSpad, zppPer, doSavePlot=False, dataPath="default", saveFinalPlot=False):
         """
         create an empty object with no data, but with figure properly formatted
         """
@@ -309,7 +309,7 @@ class zppPlotter:
         self.axUCR = 1
         self.axCCR = 2
 
-        self.optZppPer = optZppPer
+        self.zppPer = zppPer
         self.doSavePlot=doSavePlot
         self.saveFinalPlot=saveFinalPlot
         self.plotIdx = 0
@@ -737,7 +737,7 @@ def test_all_pixels(zp: zppPlotter, update=False):
         sectionPrint(f"Testing SPAD index {iSpad}")
         spadEnPattern = 0x1<<iSpad
 
-        if zp.optZppPer:
+        if zp.zppPer==-1:
             # 2.1 - set ZPP module period to default measTime period to get TCR of the single SPAD
             setZppModule(client,
                      sysClkPrdSec=icp.sysClkPrd,
@@ -753,7 +753,7 @@ def test_all_pixels(zp: zppPlotter, update=False):
             # 2.3 - from the ZPP module measurements, get the optimal period to use, based on the TCR of the SPAD
             zppPrd = getZppOptimalPeriod(allPdcsZppData=zppDataForOptimalPrd, nSpad=1)
         else:
-            zppPrd = measTime
+            zppPrd = dataConfig_in['zppPrd']
 
         # 2.4 - Set the optimal zpp period to use on the ZPP module
         setZppModule(client,
@@ -796,7 +796,7 @@ try:
     zp = zppPlotter(figName="ZPP PLOTTER",
                     nPdcMax=nPdcInput,
                     nSpad=icp.nSpad,
-                    optZppPer=dataConfig_in['zppOptimizePer'],
+                    zppPer=dataConfig_in['zppOptimizePer'],
                     doSavePlot=False,
                     saveFinalPlot=dataConfig_in['savePlot'])
 

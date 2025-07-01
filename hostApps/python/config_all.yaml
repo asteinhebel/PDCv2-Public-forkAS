@@ -49,4 +49,4 @@ dataConfig:
   #getSpadTcrUcrCcrUsingFlag
   #after ZPP period optimization, period*nZppCycles=total duration of measurement
   nZppCycles: 5000
-  zppOptimizePer: 1 #BOOL value: 0=False, 1=True
+  zppPrd: -1 #If -1 then use OptimizegetZppOptimalPeriod method. Otherwise, use this value as the ZPP period value 
