@@ -52,6 +52,7 @@ with open('config_all.yaml','r') as f:
     config_in = yaml.safe_load(f)
     pdcConfig_in = config_in['pdcConfig']
     dataConfig_in = config_in['dataConfig']
+    config_out = config_in.copy()
 
 # -----------------------------------------------
 # --- 
@@ -163,6 +164,9 @@ PDC_SETTING.PIXL = PIXL
 print("\n=== TIME REGISTER ===")
 client.runPrint(f"pdcTime --hold {pdcConfig_in['registers']['hold_time']} --rech {pdcConfig_in['registers']['recharge_time']} --flag {pdcConfig_in['registers']['flag_time']} -g")
 PDC_SETTING.TIME = client.runReturnSplitInt('pdcTime -g')
+### AS ###
+# parse PDC_SETTING.TIME to get the actual decimal values of the timing parameters from the chip and save to config_out
+# test robustness with multiple pixels
 
 
 # === ANLG REGISTER ===
@@ -651,7 +655,7 @@ class tcrPlotter:
         datafile = os.path.join(self.yamlPath, filename)
         print(f"{fgColors.green}Saving config to file {datafile}{fgColors.endc}")
         with open(datafile, 'w') as outfile:
-            yaml.dump(config_in, outfile, default_flow_style=False)
+            yaml.dump(config_out, outfile, default_flow_style=False)
 
     def checkExit(self):
         """
