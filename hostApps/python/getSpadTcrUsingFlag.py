@@ -162,12 +162,12 @@ PDC_SETTING.PIXL = PIXL
 
 # === TIME REGISTER ===
 print("\n=== TIME REGISTER ===")
-client.runPrint(f"pdcTime --hold {pdcConfig_in['registers']['hold_time']} --rech {pdcConfig_in['registers']['recharge_time']} --flag {pdcConfig_in['registers']['flag_time']} -g")
+vals=client.runPrint(f"pdcTime --hold {pdcConfig_in['registers']['hold_time']} --rech {pdcConfig_in['registers']['recharge_time']} --flag {pdcConfig_in['registers']['flag_time']} -g", returnLines=True)
 PDC_SETTING.TIME = client.runReturnSplitInt('pdcTime -g')
-### AS ###
-# parse PDC_SETTING.TIME to get the actual decimal values of the timing parameters from the chip and save to config_out
-# test robustness with multiple pixels
-
+#set output yaml values to real values from registers 
+config_out['pdcConfig']['registers']['hold_time']=float(vals[2].split(" ")[-2][1:])
+config_out['pdcConfig']['registers']['recharge_time']=float(vals[3].split(" ")[-2][1:])
+config_out['pdcConfig']['registers']['flag_time']=float(vals[4].split(" ")[-2][1:])
 
 # === ANLG REGISTER ===
 print("\n=== ANLG REGISTER ===")

@@ -58,6 +58,7 @@ with open('config_all.yaml','r') as f:
     config_in = yaml.safe_load(f)
     pdcConfig_in = config_in['pdcConfig']
     dataConfig_in = config_in['dataConfig']
+    config_out = config_in.copy()
 
 # -----------------------------------------------
 # --- 
@@ -164,8 +165,12 @@ PDC_SETTING.PIXL = PIXL
 print("\n=== TIME REGISTER ===")
 # NOTE: use a shorter hold-off to get a better estimate of the afterpulse (CCR)
 print("\n=== TIME REGISTER ===")
-client.runPrint(f"pdcTime --hold {pdcConfig_in['registers']['hold_time']} --rech {pdcConfig_in['registers']['recharge_time']} --flag {pdcConfig_in['registers']['flag_time']} -g")
+vals=client.runPrint(f"pdcTime --hold {pdcConfig_in['registers']['hold_time']} --rech {pdcConfig_in['registers']['recharge_time']} --flag {pdcConfig_in['registers']['flag_time']} -g", returnLines=True)
 PDC_SETTING.TIME = client.runReturnSplitInt('pdcTime -g')
+#set output yaml values to real values from registers 
+config_out['pdcConfig']['registers']['hold_time']=float(vals[2].split(" ")[-2][1:])
+config_out['pdcConfig']['registers']['recharge_time']=float(vals[3].split(" ")[-2][1:])
+config_out['pdcConfig']['registers']['flag_time']=float(vals[4].split(" ")[-2][1:])
 
 
 # === ANLG REGISTER ===
@@ -598,7 +603,7 @@ class zppPlotter:
         datafile = os.path.join(self.yamlPath, filename)
         print(f"{fgColors.green}Saving config to file {datafile}{fgColors.endc}")
         with open(datafile, 'w') as outfile:
-            yaml.dump(config_in, outfile, default_flow_style=False)
+            yaml.dump(config_out, outfile, default_flow_style=False)
 
     def checkExit(self):
         """
