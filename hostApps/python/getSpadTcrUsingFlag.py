@@ -835,7 +835,7 @@ def test_all_pixels(tp: tcrPlotter, update=False, numPdc=icp.nPdcMax):
 # ---------------------------------------
 sectionPrint("Script main execution")
 #define variable for testing
-nPdcTest = 4 #icp.nPdcMax
+nPdcTest = 1 if pdcConfig_in['pdcAcq']<10 else 4 #icp.nPdcMax
 try:
     # ---------------------------------------
     # --- Object to hold the plots
