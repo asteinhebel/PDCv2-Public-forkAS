@@ -6,7 +6,7 @@
 pdcConfig:
   #Values -- 0x1 = PDC0, 0x2 = PDC1, 0x4=PDC2, 0x8=PDC3, 0xF=all PDCs
   # NOTE for getSpadTcrUcrCcrUsingFlag: a single PDC at the time gives better results
-  pdcAcq: 0x1
+  pdcAcq: 0xF
 
   registers:
     #Configure CFG_STATUS_A
@@ -17,8 +17,8 @@ pdcConfig:
     scda: 0x00000
     #Configure PDC_DATA_A
     #Values -- 0x0100 = DSUM, 0x00F7 = ZPP
-    spda: 0x00F7
-    #Values -- 14.1 - 18100 [ns]
+    spda: 0x0100
+    #Values -- 14.4 - 18100 [ns]
     hold_time: 150.0
     #Values -- 3.4 - 58.6 [ns]
     recharge_time: 10.0
@@ -31,6 +31,17 @@ pdcConfig:
     pdc2: "0xffffffffffffffff"
     pdc3: "0xffffffffffffffff"
 
+  coincidence:
+    # coincidence windows of X clock cycles
+    #Values -- integer >0
+    window_width: 1
+    # number of PDC channel for a coincidence
+    #Values -- 1 to max number of PDCs
+    nchannels_threshold: 1 #3
+    # number of hits per PDC
+    #Values -- integer >0
+    nhits: 1
+
 ###########################################################################
 #
 # Analysis/Visualization Configuration
@@ -39,7 +50,7 @@ pdcConfig:
 dataConfig:
   name: "test" #addition to the end of the name string, for CSV data file
   savePlot: 0 #BOOL value: 0=False, 1=True
-  saveYaml: 0 #BOOL value: 0=False, 1=True
+  saveYaml: 1 #BOOL value: 0=False, 1=True
 
   #### SCRIPT SPECIFIC - ignore for scripts not being used####
   #getSpadTcrUsingFlag AND getSpadTcrUcrCcrUsingFlag
