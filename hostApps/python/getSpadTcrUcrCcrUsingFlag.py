@@ -164,7 +164,6 @@ PDC_SETTING.PIXL = PIXL
 # === TIME REGISTER ===
 print("\n=== TIME REGISTER ===")
 # NOTE: use a shorter hold-off to get a better estimate of the afterpulse (CCR)
-print("\n=== TIME REGISTER ===")
 vals=client.runPrint(f"pdcTime --hold {pdcConfig_in['registers']['hold_time']} --rech {pdcConfig_in['registers']['recharge_time']} --flag {pdcConfig_in['registers']['flag_time']} -g", returnLines=True)
 PDC_SETTING.TIME = client.runReturnSplitInt('pdcTime -g')
 #set output yaml values to real values from registers 
