@@ -61,3 +61,9 @@ dataConfig:
   #after ZPP period optimization, period*nZppCycles=total duration of measurement
   nZppCycles: 5000
   zppPrd: -1 #If -1 then use OptimizegetZppOptimalPeriod method. Otherwise, use this value as the ZPP period value 
+
+  #getDsum
+  #Units of seconds. If -1, then no limit on runtime
+  maxRunTime: 120
+  #If -1, then no limit on number of events
+  maxEvents: -1
