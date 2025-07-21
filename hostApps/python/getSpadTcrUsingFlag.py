@@ -77,7 +77,7 @@ zynq.init()
 # -----------------------------------------------
 # --- prepare controller for acquisition
 # -----------------------------------------------
-icp = initCtlPdcFromClient(client=client, sysClkPrd=10e-9, pdcEn=0xF0)
+icp = initCtlPdcFromClient(client=client, sysClkPrd=10e-9, pdcEn=0xF)
 
 
 # -----------------------------------------------
@@ -859,7 +859,6 @@ try:
         medianToMin=4
 
     # store all tested threshold methods to later select the one to use
-    #thresholdList = [[0]*len(ScreamerMethod) for _ in range(0, icp.nPdcMax)]
     thresholdList = np.zeros((len(ScreamerMethod), icp.nPdcMax))
 
     for iPdc in range(0, icp.nPdcMax):
