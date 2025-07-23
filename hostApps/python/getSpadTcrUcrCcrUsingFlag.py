@@ -58,6 +58,7 @@ with open('config_all.yaml','r') as f:
     config_in = yaml.safe_load(f)
     pdcConfig_in = config_in['pdcConfig']
     dataConfig_in = config_in['dataConfig']
+    config_out = config_in.copy()
 
 # -----------------------------------------------
 # --- 
@@ -164,8 +165,12 @@ PDC_SETTING.PIXL = PIXL
 print("\n=== TIME REGISTER ===")
 # NOTE: use a shorter hold-off to get a better estimate of the afterpulse (CCR)
 print("\n=== TIME REGISTER ===")
-client.runPrint(f"pdcTime --hold {pdcConfig_in['registers']['hold_time']} --rech {pdcConfig_in['registers']['recharge_time']} --flag {pdcConfig_in['registers']['flag_time']} -g")
+vals=client.runPrint(f"pdcTime --hold {pdcConfig_in['registers']['hold_time']} --rech {pdcConfig_in['registers']['recharge_time']} --flag {pdcConfig_in['registers']['flag_time']} -g", returnLines=True)
 PDC_SETTING.TIME = client.runReturnSplitInt('pdcTime -g')
+#set output yaml values to real values from registers 
+config_out['pdcConfig']['registers']['hold_time']=float(vals[2].split(" ")[-2][1:])
+config_out['pdcConfig']['registers']['recharge_time']=float(vals[3].split(" ")[-2][1:])
+config_out['pdcConfig']['registers']['flag_time']=float(vals[4].split(" ")[-2][1:])
 
 
 # === ANLG REGISTER ===
@@ -281,7 +286,7 @@ client.run(f"ctlCfg -a FSMM -r 0x0101 -g"); # triggered by a COMMAND
 # --- Class to generate the display of the results
 # --------------------------------------------------
 class zppPlotter:
-    def __init__(self, figName, nPdcMax, nSpad, doSavePlot=False, dataPath="default", saveFinalPlot=False):
+    def __init__(self, figName, nPdcMax, nSpad, zppPer, doSavePlot=False, dataPath="default", saveFinalPlot=False):
         """
         create an empty object with no data, but with figure properly formatted
         """
@@ -309,6 +314,7 @@ class zppPlotter:
         self.axUCR = 1
         self.axCCR = 2
 
+        self.zppPer = zppPer
         self.doSavePlot=doSavePlot
         self.saveFinalPlot=saveFinalPlot
         self.plotIdx = 0
@@ -597,7 +603,7 @@ class zppPlotter:
         datafile = os.path.join(self.yamlPath, filename)
         print(f"{fgColors.green}Saving config to file {datafile}{fgColors.endc}")
         with open(datafile, 'w') as outfile:
-            yaml.dump(config_in, outfile, default_flow_style=False)
+            yaml.dump(config_out, outfile, default_flow_style=False)
 
     def checkExit(self):
         """
@@ -682,12 +688,12 @@ def measCntRate(spadEnPattern, measTime, printTcrOnly=False):
     # 5- wait to receive the file, fetch the ZPP data and close it
     if type(spadEnPattern) == int:
         # single pattern value, same setting for everyone
-        N_SPAD = [bin(spadEnPattern).count("1")]*icp.nPdcMax
+        N_SPAD = [bin(spadEnPattern).count("1")]*zp.nPdcMax
         client.runPrint(f"pdcSpad --pattern 0x{spadEnPattern:016x} --mode NONE")
     else:
         # array of patterns
-        N_SPAD = [0]*icp.nPdcMax
-        for iPdc in range(0, icp.nPdcMax):
+        N_SPAD = [0]*zp.nPdcMax
+        for iPdc in range(0, zp.nPdcMax):
             N_SPAD[iPdc] = bin(spadEnPattern[iPdc]).count("1")
             client.runPrint(f"pdcSpad --pattern 0x{spadEnPattern[iPdc]:016x} --spdc {iPdc} --mode NONE")
 
@@ -701,8 +707,8 @@ def measCntRate(spadEnPattern, measTime, printTcrOnly=False):
     db.h5Open()
 
     # get ZPP results
-    ZPP = [{}]*icp.nPdcMax
-    for iPdc in range(0, icp.nPdcMax):
+    ZPP = [{}]*zp.nPdcMax
+    for iPdc in range(0, zp.nPdcMax):
         ZPP[iPdc] = db.getPdcZPP(iPdc=iPdc, zppList=zp.zppList)
         if (ZPP[iPdc] != None) and (ZPP[iPdc].AVG != -1):
             # process here ZPP infos
@@ -736,20 +742,23 @@ def test_all_pixels(zp: zppPlotter, update=False):
         sectionPrint(f"Testing SPAD index {iSpad}")
         spadEnPattern = 0x1<<iSpad
 
-        # 2.1 - set ZPP module period to default measTime period to get TCR of the single SPAD
-        setZppModule(client,
-                 sysClkPrdSec=icp.sysClkPrd,
-                 onTimeSec=measTime,
-                 offTimeSec=icp.sysClkPrd)
+        if zp.zppPer==-1:
+            # 2.1 - set ZPP module period to default measTime period to get TCR of the single SPAD
+            setZppModule(client,
+                     sysClkPrdSec=icp.sysClkPrd,
+                     onTimeSec=measTime,
+                     offTimeSec=icp.sysClkPrd)
 
-        # 2.2 - from the ZPP module, get the measurements of the SPAD
-        zppDataForOptimalPrd = measCntRate(spadEnPattern=spadEnPattern,
-                                           measTime=measTime,
-                                           printTcrOnly=True)
+            # 2.2 - from the ZPP module, get the measurements of the SPAD
+            zppDataForOptimalPrd = measCntRate(spadEnPattern=spadEnPattern,
+                                               measTime=measTime,
+                                               printTcrOnly=True)
 
 
-        # 2.3 - from the ZPP module measurements, get the optimal period to use, based on the TCR of the SPAD
-        zppPrd = getZppOptimalPeriod(allPdcsZppData=zppDataForOptimalPrd, nSpad=1)
+            # 2.3 - from the ZPP module measurements, get the optimal period to use, based on the TCR of the SPAD
+            zppPrd = getZppOptimalPeriod(allPdcsZppData=zppDataForOptimalPrd, nSpad=1)
+        else:
+            zppPrd = dataConfig_in['zppPrd']
 
         # 2.4 - Set the optimal zpp period to use on the ZPP module
         setZppModule(client,
@@ -771,6 +780,7 @@ def test_all_pixels(zp: zppPlotter, update=False):
         if update:
             zp.updatePlot()
 
+
     # indicate all tests are completed
     zp.done_test_all_pixels = True
 
@@ -786,9 +796,12 @@ try:
     # doSavePlot will save the plot at each measure.
     # It will then increase the test time.
     # Use it only to generate a .gif of the measures
+    # Find number of PDCs activated in YAML config to use as max number of PDCs
+    nPdcInput = 1 if pdcConfig_in['pdcAcq'] < 10 else 4 #AS - can only account for ONE head board
     zp = zppPlotter(figName="ZPP PLOTTER",
-                    nPdcMax=icp.nPdcMax,
+                    nPdcMax=nPdcInput,
                     nSpad=icp.nSpad,
+                    zppPer=dataConfig_in['zppPrd'],
                     doSavePlot=False,
                     saveFinalPlot=dataConfig_in['savePlot'])
 

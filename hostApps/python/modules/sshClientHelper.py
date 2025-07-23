@@ -42,15 +42,15 @@ class sshClient:
         return host_out.exit_code
 
     # function to send a command and display the result
-    def runPrint(self, cmd, printCmd=True):
+    def runPrint(self, cmd, printCmd=True, returnLines=False):
         if printCmd: print(cmd)
         host_out = self.client.run_command(cmd)
+        lines_out=[l for l in host_out.stdout] 
         for line in host_out.stdout:
             print(line)
         #time.sleep(0.020)
         time.sleep(0.010)
-        #exit_code = host_out.exit_code
-        return host_out.exit_code
+        return [host_out.exit_code]+lines_out if returnLines else host_out.exit_code
 
     # function to send a command and display the result and sleep
     def runSleep(self, cmd, msSleep: float):
