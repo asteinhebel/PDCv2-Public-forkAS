@@ -6,7 +6,7 @@
 pdcConfig:
   #Values -- 0x1 = PDC0, 0x2 = PDC1, 0x4=PDC2, 0x8=PDC3, 0xF=all PDCs
   # NOTE for getSpadTcrUcrCcrUsingFlag: a single PDC at the time gives better results
-  pdcAcq: 0xF
+  pdcAcq: 0x1
 
   registers:
     #Configure CFG_STATUS_A
@@ -17,12 +17,15 @@ pdcConfig:
     scda: 0x00000
     #Configure PDC_DATA_A
     #Values -- 0x0100 = DSUM, 0x00F7 = ZPP
-    spda: 0x0100
+    spda: 0x00F7
     #Values -- 14.4 - 18100 [ns]
+    #Default 150.0
     hold_time: 150.0
     #Values -- 3.4 - 58.6 [ns]
+    #Default 10.0
     recharge_time: 10.0
     #Vaues -- 1.6 - 55.3 [ns]
+    #Default 10.0
     flag_time: 10.0
 
   pattern:
@@ -49,13 +52,17 @@ pdcConfig:
 ###########################################################################
 dataConfig:
   name: "test" #addition to the end of the name string, for CSV data file
-  savePlot: 0 #BOOL value: 0=False, 1=True
+  savePlot: 1 #BOOL value: 0=False, 1=True
   saveYaml: 1 #BOOL value: 0=False, 1=True
 
   #### SCRIPT SPECIFIC - ignore for scripts not being used####
   #getSpadTcrUsingFlag AND getSpadTcrUcrCcrUsingFlag
   #defaults: 0.2, 0.1 respectively 
   measTime: 0.1 #[s]
+
+  #getSpadTcrUsingFlag
+  #options: threshold, average, percent, medianFactor, medianToMin
+  screamerMethod: 'average'
 
   #getSpadTcrUcrCcrUsingFlag
   #after ZPP period optimization, period*nZppCycles=total duration of measurement
@@ -64,6 +71,6 @@ dataConfig:
 
   #getDsum
   #Units of seconds. If -1, then no limit on runtime
-  maxRunTime: 120
+  maxRunTime: 30
   #If -1, then no limit on number of events
   maxEvents: -1

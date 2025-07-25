@@ -942,8 +942,13 @@ try:
 
     # 4- estimate the TCR of the array with the screamers pixels disabled
     sectionPrint("Estimate the TCR of the array (no screamers)")
-    # NOTE: change here the method to use
-    method = ScreamerMethod.percent
+    
+    if dataConfig_in['screamerMethod'] not in ['threshold', 'average', 'percent', 'medianFactor', 'medianToMin']:
+        print(f"Screamer method {dataConfig_in['screamerMethod']} is not valid. Defaulting to: percent")
+        dataConfig_in['screamerMethod'] = 'percent'
+
+    #method = ScreamerMethod.percent
+    method = getattr(ScreamerMethod, dataConfig_in['screamerMethod'])
     print(f"selected method is {method.name}")
 
     # estimate the TCR using the given parameters
