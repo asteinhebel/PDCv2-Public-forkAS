@@ -5,6 +5,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 import math
+from scipy.special import gamma
+from scipy.stats import poisson
 from scipy.optimize import curve_fit
 from matplotlib import colors
 
@@ -13,7 +15,7 @@ nSpads = 64
 colorlist = ['r', 'b', 'g', 'orange', 'y', 'k']
 
 #Create dflist by taking files from a folder specified by dir_path. Not all functions utilize this dflist yet.
-dir_path = "data"
+dir_path = "../../../../../data"
 myFiles = os.listdir(dir_path)
 
 dflist = []
@@ -24,13 +26,14 @@ for file in myFiles:
         dflist.append(pd.read_csv(filePath, sep=';'))
         
 #plots a single run across all PDCs on the same graph. Gives scatter plot of TCR and percent distribution
-def tcrPlotter():
-    df = pd.read_csv("20250602_13h37m57_TCR_PDC0_PDC1_PDC2_PDC3_200ms.csv" , sep=';')
+#enter the df argument as pd.read_csv("filepath")
+def tcrPlotter(df):
+    #df = pd.read_csv("20250602_13h37m57_TCR_PDC0_PDC1_PDC2_PDC3_200ms.csv" , sep=';')
     colors = ['r', 'b', 'g', 'y']
 
-    for j in range(2):
+    for j in range(2): #loop over figures
         plt.figure(j + 1)
-        for i in range(4):
+        for i in range(4): #loop over pdcs
             if j == 0:
                 y_err = df[f'SPAD_TCR{i}'] ** 0.5
                 plt.scatter(df[f'SPAD_idx{i}'], df[f'SPAD_TCR{i}'], facecolors = 'none', edgecolors = colors[i])
@@ -65,7 +68,7 @@ def tcrPlotterMultipleRuns(dflist):
     for i in range(nmbRuns):
         legend.append(f'Run{i + 1}')
         legend.append(f'Mean{i + 1}')
-        colors.append(colorlist[i % len(colorlist)])
+        colors.append(colorlist[i % len(colorlist)]) #in case there are more runs than colors in colorlist
 
     for j in range(nmbPdcs): #j = pdc index
         for i in range(nmbRuns): #i = run index
@@ -73,7 +76,7 @@ def tcrPlotterMultipleRuns(dflist):
             y_err = dflist[i][f'SPAD_TCR{j}'] ** 0.5
             plt.scatter(dflist[i][f'SPAD_idx{j}'], dflist[i][f'SPAD_TCR{j}'], facecolors = 'none', edgecolors=colors[i])
             #plt.errorbar(dflist[i][f'SPAD_idx{j}'], dflist[i][f'SPAD_TCR{j}'], yerr = y_err, fmt = 'none', ecolor = colors[i])
-            #plt.plot(dflist[i][f'SPAD_idx{j}'], [dflist[i][f'SPAD_TCR{j}'].mean()]*64, '--', color=colors[i])
+            plt.plot(dflist[i][f'SPAD_idx{j}'], [dflist[i][f'SPAD_TCR{j}'].mean()]*64, '--', color=colors[i])
             plt.title(f'Tile{j} ({nmbRuns} Runs)')
             plt.yscale('log')
 
@@ -307,21 +310,17 @@ def noScreamersMedianIterative():
 #first parameter is the height of the peak
 #second parameter is the position of the center of the peak
 #third parameter is the standard deviation
-def thresholdGaussianFit():
-    i=0 #indicate which file to use in dflist
+def thresholdGaussianFit(dflist, threshold = 200000):
+    i=6 #indicate which file to use in dflist
     for ipdc in range(nPdcs):
-        dflist = [
-        pd.read_csv( "20250602_13h37m57_TCR_PDC0_PDC1_PDC2_PDC3_200ms.csv", sep=';'),
-        pd.read_csv( "20250602_16h32m37_TCR_PDC0_PDC1_PDC2_PDC3_200ms.csv", sep=';'),
-        pd.read_csv( "20250603_16h47m57_TCR_PDC0_PDC1_PDC2_PDC3_200ms.csv", sep=';')
-        ]
-        for x in dflist[i].index:
-            if dflist[i].loc[x, f'SPAD_TCR{ipdc}'] > 400:
-                dflist[i].drop(x,inplace = True)
+        dflist2 = dflist
+        for x in dflist2[i].index:
+            if dflist2[i].loc[x, f'SPAD_TCR{ipdc}'] > threshold:
+                dflist2[i].drop(x,inplace = True)
 
         plt.figure(ipdc)
         #plt.subplot(1,2,1)
-        hist = plt.hist(dflist[i][f'SPAD_TCR{ipdc}'], bins = 'fd')
+        hist = plt.hist(dflist2[i][f'SPAD_TCR{ipdc}'], bins = 'fd')
         plt.title(f'After, PDC{ipdc}')
 
         midpoint = []
@@ -347,8 +346,8 @@ def thresholdGaussianFit():
 #Treats all PDCs from one file like a 64x4 array of spads
 #Removes screamers by saying how many you want to take out
 #Gives histogram with gauss fit and scatter plot 
-def sumPdcsGaussFit():
-    df = pd.read_csv("20250602_16h12m04_TCR_PDC0_PDC1_PDC2_PDC3_200ms.csv", sep=';')
+def sumPdcsGaussFit(df=pd.read_csv("../../../../../20250602_16h12m04_TCR_PDC0_PDC1_PDC2_PDC3_200ms.csv", sep=';')):
+    #df = pd.read_csv("20250602_16h12m04_TCR_PDC0_PDC1_PDC2_PDC3_200ms.csv", sep=';')
     lst = []
     for ipdc in range(4):
         for i in range(64):
@@ -396,21 +395,6 @@ def sumPdcsGaussFit():
     plt.plot(midpoint, model_func(midpoint, *popt), 'r-')
     plt.show()
 
-#Plots ccr of multiple runs
-#Data must be in 'PDC0_CCR (%)' format
-def ccrPlotter(dflist):
-    fs = 16
-    plt.rcParams.update({'font.size': 12})
-
-    for i in range(len(dflist)):
-        plt.scatter(dflist[i]['PDC0_SPAD_idx'], dflist[i]['PDC0_CCR (%)'], facecolors = 'none', edgecolors=colorlist[i], label = f'Run {i+1}')
-        plt.xlabel('SPAD index', fontsize=fs)
-        plt.ylabel('CCR [%]', fontsize = fs)
-        plt.title('PDC0 CCR')
-        plt.tick_params(length = 10, width = 2)
-        plt.legend()
-    plt.show()
-
 #Gives the number of spads that get a negative ccr value based on the holdoff time
 #have to order dflist by holdoff time to get correct table
 #returns the dataframe, if you want to view you have to print it
@@ -418,17 +402,22 @@ def ccrPlotter(dflist):
 def getNegativeCcrValues(dflist):
     ipdc = 0 #which pdc
     data = {
-        'holdoff-value': [14.4, 140, 1400, 14000, 18100],
-        'number-of-negative-CCR-SPADs': []
+        'Run #': [i for i in range(len(dflist))],
+        'Flag value': [1.6, 15.3, 25.3, 35.3, 45.3, 55.3],
+        'number-of-negative-CCR-SPADs': [],
+        'negative SPAD index': []
     }
+    negativeList = [[] for i in range(len(dflist))] #will contain indeces of negative SPADs
 
     for i in range(len(dflist)):
         n = 0
         for j in range(len(dflist[i][f'PDC{ipdc}_SPAD_idx'])):
             if dflist[i][f'PDC{ipdc}_CCR (%)'][j] < 0:
                 n+=1
+                negativeList[i].append(j)
         data['number-of-negative-CCR-SPADs'].append(n)
-        
+        data['negative SPAD index'].append(negativeList[i])
+
     return(pd.DataFrame(data))
 
 #Displays 64x64 SPAD array tcr heatmap
@@ -448,17 +437,10 @@ def fullArrayHeatMap():
     cbar.set_label('TCR (Log scale)')
     plt.show()
 
-#plots ucr of multiple runs
-def ucrPlotter():
-    for i in range(len(dflist)):
-        plt.scatter(dflist[i]['PDC0_SPAD_idx'], dflist[i]['PDC0_UCR (cps)'], facecolors = 'none', edgecolors=colorlist[i])
-        plt.title('PDC0 UCR')
-    plt.show()
-
 def getNegativeUcrValues(dflist):
     ipdc = 0 #which pdc
     data = {
-        'holdoff-value': [14.4, 140, 1400, 14000, 18100],
+        'recharge value': [3.4, 14.4, 25.4, 36.4, 47.4, 58.6],
         'number-of-negative-UCR-SPADs': []
     }
 
@@ -472,22 +454,44 @@ def getNegativeUcrValues(dflist):
     return(pd.DataFrame(data))
 
 def tcrUcrCcrPlotter(dflist):
-    plt.figure(1)
-    for i in range(len(dflist)):
-        plt.scatter(dflist[i]['PDC0_SPAD_idx'], dflist[i]['PDC0_CCR (%)'], facecolors = 'none', edgecolors=colorlist[i])
-        plt.title('PDC0 CCR')
-
-    plt.figure(2)
-    for i in range(len(dflist)):
-        plt.scatter(dflist[i]['PDC0_SPAD_idx'], dflist[i]['PDC0_UCR (cps)'], facecolors = 'none', edgecolors=colorlist[i])
-        plt.title('PDC0 UCR')
     
-    plt.figure(3)
+    plt.figure(1) #plot the average CCR
+    for i in range(len(dflist)):
+        averageCCR = 0
+        counter = 0
+        for j in dflist[i]['PDC0_CCR (%)']:
+            if j >= 0:
+                averageCCR += j
+                counter += 1
+        averageCCR /= counter
+        plt.plot([i for i in range(counter)], [averageCCR]*counter, '--', color=colorlist[i])
+
+    plt.figure(1) #plot CCR
+    for i in range(len(dflist)):
+        plt.scatter(dflist[i]['PDC0_SPAD_idx'], dflist[i]['PDC0_CCR (%)'], facecolors = 'none', edgecolors=colorlist[i], label = f'run {i}')
+        plt.title('PDC0 CCR')
+    plt.legend()
+    plt.xlabel('SPAD index')
+    plt.ylabel('CCR (%)')
+    plt.ylim(bottom=0)
+
+    plt.figure(2) #plot UCR
+    for i in range(len(dflist)):
+        plt.scatter(dflist[i]['PDC0_SPAD_idx'], dflist[i]['PDC0_UCR (cps)'], facecolors = 'none', edgecolors=colorlist[i], label = f'run {i}')
+        plt.title('PDC0 UCR')
+    plt.legend()
+    plt.xlabel('SPAD index')
+    plt.ylabel('UCR')
+    plt.ylim(bottom=0)
+    
+    plt.figure(3) #plot tcr
     for i in range(len(dflist)):
         plt.scatter(dflist[i]['PDC0_SPAD_idx'], dflist[i]['PDC0_TCR (cps)'], facecolors = 'none', edgecolors=colorlist[i])
         plt.title('PDC0 TCR (log scale)')
         plt.yscale('log')
-    
+    plt.xlabel('SPAD index')
+    plt.ylabel('TCR')
+
     plt.show()
 
 #Gives scatter plot and histogram for one PDC summed across multiple runs
@@ -682,7 +686,7 @@ def plotChiSigmaSumPdcs():
         print(f'number of screamers from PDC{i} = {len(pdclst[i])}')
         print('--------------------------------')
 
-    plt.close(0)
+    plt.close(0) #close histogram plot so it does not show. It is only initialized for calculations here
     plt.figure(1)
     plt.plot(np.linspace(9,nscreamersTot, nscreamersTot-9), chiList, color='b', label = 'chi-square')
     plt.plot(np.linspace(9,nscreamersTot, nscreamersTot-9), reducedChiList, color='r', label = 'reduced chi-square')
@@ -724,9 +728,10 @@ def avgPlotter(dflist, nSpads = 64, nPdcs = 4, colorlist = ['r', 'b', 'g', 'oran
 #The order of the values for the timing must correspond to the order of the files in dflist
 def avgTimingPlotter(dflist, nSpads = 64, nPdcs = 4, colorlist = ['r', 'b', 'g', 'orange', 'y', 'k']):
         #timing = [3.4,14.4, 25.4,36.4,47.4,58.6]
-        timing = [14.4,140,1400,14000,18100]
+        #timing = [14.4,140,1400,14000,18100]
+        timing = [1.6, 15.3, 25.3, 35.3, 45.3, 55.3]
         avgList = [[] for ipdc in range(nPdcs)]
-        fs = 15.5 #Font size for plots
+        fs = 10 #Font size for plots
         plt.rcParams.update({'font.size': 12})
 
         for ipdc in range(nPdcs):
@@ -737,14 +742,16 @@ def avgTimingPlotter(dflist, nSpads = 64, nPdcs = 4, colorlist = ['r', 'b', 'g',
                 plt.plot(timing, avgList[ipdc], '--', color = colorlist[ipdc])
 
         plt.legend()
-        plt.xscale('log')
+        #plt.xscale('log')
         plt.ylabel('Mean TCR', fontsize = fs)
-        plt.xlabel('Hold-off Time [ns]', fontsize = fs)
+        plt.xlabel('Flag Time [ns]', fontsize = fs)
         plt.title('PDC020')
         plt.tick_params(length = 10, width = 2)
         plt.tick_params(length = 10, width = 1, which = 'minor')
         plt.show()
 
+#For each SPAD, the difference between the highest and lowest TCR across runs is calculated
+#Then it is plotted against the average TCR across those runs for each SPAD
 def differencePlotter(dflist, colorlist = ['r', 'b', 'g', 'orange', 'y', 'k']):
     plt.rcParams.update({'font.size': 12})
     #ipdc = 2
@@ -777,5 +784,84 @@ def differencePlotter(dflist, colorlist = ['r', 'b', 'g', 'orange', 'y', 'k']):
     plt.title('PDC020 (y=8*x^0.5)')
     plt.show()
 
+#Removes any SPAD above the average tcr across the whole PDC
+#As the loudest screamers dominate the average, it is a good way to get rid of the guaranteed screamers before optimizing further
+#Then it plots the new group of SPADs using tcrPlotterMultipleRuns()
+def initialScreamerRemoval(dflist):
+    pdcAverageTcr = [[] for i in range(len(dflist))]
+    for i in range(len(dflist)): #loop over runs
+        for j in range(4): #loop over pdcs
+            count = 0 #use to count the number of screamers removed
+            pdcAverageTcr[i].append(dflist[i][f'SPAD_TCR{j}'].sum() / len(dflist[i][f'SPAD_TCR{j}'])) #calculate the average for each PDC
 
-avgPlotter(dflist=dflist)
+            for k in dflist[i][f'SPAD_TCR{j}']: #loop over every SPAD
+                if k >= pdcAverageTcr[i][j]:
+                    dflist[i][f'SPAD_TCR{j}'] = dflist[i][f'SPAD_TCR{j}'].replace(k, np.nan)
+                    count += 1
+            print(f'Run {i}, PDC{j}: SPADs removed = {count}. percentage = {count * 100 / 64}')
+        print('--------------------------------------------------------------')
+
+    tcrPlotterMultipleRuns(dflist=dflist)
+
+#Not currently working
+#Trying to do poisson fit on TCR distribution across 4x64 SPADs
+def sumPdcsPoissonFit(df=pd.read_csv("../../../../../20250602_16h12m04_TCR_PDC0_PDC1_PDC2_PDC3_200ms.csv", sep=';')):
+    #df = pd.read_csv("20250602_16h12m04_TCR_PDC0_PDC1_PDC2_PDC3_200ms.csv", sep=';')
+    lst = []
+    for ipdc in range(4):
+        for i in range(64):
+            lst.append(df[f'SPAD_TCR{ipdc}'][i])
+
+    removedlst=[]
+    for i in range(20):
+        removedlst.append(max(lst))
+        lst.remove(max(lst))
+    lowest = min(removedlst)
+    print(lowest)
+
+    plt.figure(1)
+    plt.scatter(np.linspace(1,len(lst),len(lst)), lst, facecolors = 'none', edgecolors='r')
+    plt.xlabel('SPAD Index')
+    plt.ylabel('TCR')
+    plt.yscale('log')
+    plt.title('Sum of PDCs')
+
+    plt.figure(2)
+    hist = plt.hist(lst, bins = 'auto')
+    plt.xlabel('TCR')
+    plt.ylabel('Occurrences')
+    plt.title('Sum of PDCs (PDC020)')
+    #plt.close(2)
+
+    midpoint = []
+    binWidth = []
+    for k in range(len(hist[1])):
+        if k != len(hist[1]) - 1:
+            midpoint.append((hist[1][k] + hist[1][k+1]) / 2)
+            binWidth.append(hist[1][k+1] - hist[1][k])
+    
+    nhist = [] #normalize histogram so that all of the frequencies add to 1
+    for k in range(len(hist[0])):
+        nhist.append(hist[0][k] / sum(hist[0]))
+    
+    plt.figure(3)
+    plt.stairs(nhist,hist[1])
+
+    def model_func(x,a):
+                #y = [i+1 for i in x]
+                #return (a ** x) * math.exp(-a) / gamma(y)
+                return poisson.pmf(x,a)
+    
+    popt, pcov = curve_fit(model_func, midpoint, nhist, p0 = [300])
+    a_opt= popt
+
+    chiSquare = 0
+    '''for i in range(len(midpoint)):
+        chiSquare += ((model_func(midpoint, *popt)[i] - nhist[i]) ** 2) / model_func(midpoint, *popt)[i]
+    print(f'Chi-squared = {chiSquare}')'''
+    print(f'number of bins = {len(midpoint)}')
+
+    plt.plot(midpoint, model_func(midpoint, *popt), 'r-')
+    plt.show()
+    print(model_func(midpoint, 300))
+sumPdcsPoissonFit()
