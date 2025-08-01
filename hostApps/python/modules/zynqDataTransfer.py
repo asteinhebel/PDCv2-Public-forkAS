@@ -267,7 +267,7 @@ class zynqDataTransfer:
             if len(PID) == 0:
                 print(f"{fgColors.red}ERROR: {self.hexAppName} app is not running on this machine.{fgColors.endc}")
             else:
-                print(f"{fgColors.red}ERROR: {self.hexAppName} app is not running {len(PID)} times on this machine.{fgColors.endc}")
+                print(f"{fgColors.red}ERROR: {self.hexAppName} app is running {len(PID)} times on this machine.{fgColors.endc}")
         return ""
 
 
