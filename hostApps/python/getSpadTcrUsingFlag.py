@@ -60,6 +60,21 @@ tp = None
 # time to wait for each setting
 measTime = 0.2  # second
 
+# NOTE: user can set hold, recharge and flag time using the following environment variables:
+#       HOLD_TIME_NS, RECH_TIME_NS, FLAG_TIME_NS
+
+# NOTE: set environment variable SPAD_BIAS_V to store it in data file name
+spadBiasStr=""
+if os.environ.get("SPAD_BIAS_V") is not None:
+    spadBias = os.environ['SPAD_BIAS_V']
+    if '.' in spadBias:
+        spadBiasStr = "_" + spadBias.replace('.', "V")
+    elif ',' in spadBias:
+        spadBiasStr = "_" + spadBias.replace(',', "V")
+    else:
+        spadBiasStr = "_" + spadBias + "V"
+    print(f"SPAD bias voltage set to {spadBias} V")
+
 # -----------------------------------------------
 # --- open a connection with the ZCU102 board
 # -----------------------------------------------
@@ -135,7 +150,7 @@ icp.preparePDC()
 # --- 64 for the embedded 2D CMOS SPADs
 # -----------------------------------------------
 icp.nSpad = 64
-
+icp.nSpad = 62
 
 # --------------------------
 # --- configure the PDCs ---
@@ -147,7 +162,7 @@ client.runPrint("ctlCmd -c MODE_CFG")  # set PDCs to configuration mode
 # === PIXL REGISTER ===
 print("\n=== PIXL REGISTER ===")
 # active quenching of the front-end
-ACTIVE_QC_EN = 0; # 0=disabled/passive, 1=enabled/active
+ACTIVE_QC_EN = 1; # 0=disabled/passive, 1=enabled/active # TBD changed here
 # trigger using QC front-end (FE) or digital only (DGTL)
 TRG_DGTL_FEN = 0; # 0=FE, 1=DGTL
 # enable flag output of the pixel
@@ -161,9 +176,9 @@ PDC_SETTING.PIXL = PIXL
 
 # === TIME REGISTER ===
 print("\n=== TIME REGISTER ===")
-HOLD_TIME = 150.0
-RECH_TIME = 10.0
-FLAG_TIME = 10.0
+HOLD_TIME = float(os.environ.get("HOLD_TIME_NS", default=150.0))
+RECH_TIME = float(os.environ.get("RECH_TIME_NS", default=10.0))
+FLAG_TIME = float(os.environ.get("FLAG_TIME_NS", default=10.0))
 client.runPrint(f"pdcTime --hold {HOLD_TIME} --rech {RECH_TIME} --flag {FLAG_TIME} -g")
 PDC_SETTING.TIME = client.runReturnSplitInt('pdcTime -g')
 
@@ -261,7 +276,8 @@ elif method == ZppModuleSetMethod.registers:
 # ---------------------------------------
 try:
     print(f"{fgColors.bYellow}Apply HV here{fgColors.endc}")
-    input("Press [enter] key to continue")
+    if os.environ.get("BATCH_MODE") is None:
+        input("Press [enter] key to continue")
 except KeyboardInterrupt:
     print("\nKeyboard Interrupt: exit program")
     sys.exit()
@@ -275,7 +291,7 @@ client.run(f"ctlCfg -a FSMM -r 0x0101 -g"); # triggered by a COMMAND
 # --- Class to generate the display of the results
 # --------------------------------------------------
 class tcrPlotter:
-    def __init__(self, figName, nPdcMax, nSpad, doSavePlot=False, dataPath="default"):
+    def __init__(self, figName, nPdcMax, nSpad, doSavePlot=False, doSaveGif=False, dataPath="default"):
         """
         create an empty object with no data, but with figure properly formatted
         """
@@ -309,7 +325,9 @@ class tcrPlotter:
         self.axTcr = 0
         self.axPop = 1
 
-        self.doSavePlot=doSavePlot
+        self.dataFileName = ""
+        self.doSavePlot = doSavePlot
+        self.doSaveGif = doSaveGif
         self.plotIdx = 0
         self.fig = None
         self.dateStrPlot = datetime.datetime.now().strftime("%Y%m%d_%Hh%Mm%S")
@@ -324,7 +342,9 @@ class tcrPlotter:
         # add script name to path
         self.dataPath = Path(os.path.join(self.dataPath, os.path.splitext(scriptName)[0]))
         # path to save plot
-        self.plotPath = Path(os.path.join(self.dataPath, 'FIG', self.dateStrPlot))
+        self.plotPath = Path(os.path.join(self.dataPath, 'PNG'))
+        # add a sub folder for all the images of the same measure
+        self.plotGifPath = Path(os.path.join(self.plotPath, self.dateStrPlot))
 
         # init plot
         self.initPlot()
@@ -467,7 +487,9 @@ class tcrPlotter:
 
         self.updateLegend()
         self.pausePlot(pauseTime=0.001)
-        self.savePlot(iPdc=iPdc)
+        if self.doSaveGif:
+            # save a picture at each update to generate a gif
+            self.savePlot(iPdc=iPdc, doSaveGif=True)
         self.checkExit()
 
 
@@ -587,6 +609,13 @@ class tcrPlotter:
         return registerList
 
 
+    def getFileName(self):
+        if self.dataFileName == "":
+            dateStr=datetime.datetime.now().strftime("%Y%m%d_%Hh%Mm%S")
+            self.dataFileName = f"{dateStr}_TCR_{int(measTime*1000):d}ms{spadBiasStr}"
+        return self.dataFileName
+
+
     def saveData(self):
         """
         save data to a CSV file
@@ -598,9 +627,7 @@ class tcrPlotter:
             # per PDC data
             if self.pdcValid[iPdc]:
                 # only if data is valid
-                if pdcStr != "":
-                    pdcStr+='_'
-                pdcStr+=f"PDC{iPdc}"
+                pdcStr+=f"_PDC{iPdc}"
 
                 dfNew = pd.DataFrame(data=self.spadIdx, columns=[f"SPAD_idx{iPdc}"])
                 df = pd.concat([df, dfNew], axis=1)
@@ -613,21 +640,31 @@ class tcrPlotter:
 
         if df.size > 0:
             # if there are data to export
-            filename = f"{dateStr}_TCR_{pdcStr}_{int(measTime*1000):d}ms.csv"
+            filename = f"{self.getFileName()}{pdcStr}.csv"
             self.dataPath.mkdir(parents=True, exist_ok=True)
             datafile = os.path.join(self.dataPath, filename)
             print(f"{fgColors.green}Saving data to file {datafile}{fgColors.endc}")
             df.to_csv(datafile, sep=';', index=False, float_format="%.3E")
 
-    def savePlot(self, iPdc=None):
+    def savePlot(self, iPdc=None, doSaveGif=False):
         """
         save plot to a png file
         """
         if self.fig and self.doSavePlot:
             if iPdc == None or self.pdcValid[iPdc]:
-                filename = f"TCR_{self.plotIdx:06d}.png"
+                if iPdc == None:
+                    pdcStr = ""
+                    for iPdc in range(0, self.nPdcMax):
+                        if self.pdcValid[iPdc]:
+                            pdcStr+=f"_PDC{iPdc}"
+                else:
+                    pdcStr=f"_PDC{iPdc}"
+                filename = f"{self.getFileName()}{pdcStr}_{self.plotIdx:06d}.png"
                 self.plotPath.mkdir(parents=True, exist_ok=True)
-                datafile = os.path.join(self.plotPath, filename)
+                if doSaveGif:
+                    datafile = os.path.join(self.plotPathGif, filename)
+                else:
+                    datafile = os.path.join(self.plotPath, filename)
                 print(f"saving plot to file {datafile}")
                 self.fig.savefig(datafile)
                 self.plotIdx += 1
@@ -817,7 +854,7 @@ try:
     tp = tcrPlotter(figName="TCR PLOTTER",
                     nPdcMax=icp.nPdcMax,
                     nSpad=icp.nSpad,
-                    doSavePlot=False)
+                    doSavePlot=os.environ.get("SAVE_PLOT", default=False))
 
     # ---------------------------------------
     # --- SPAD count rate logic
@@ -834,6 +871,9 @@ try:
             tp.updatePlot()
         # update a last time
         tp.updatePlot()
+
+        # save plot if enabled by user
+        tp.savePlot()
 
     else:
         test_all_pixels(tp=tp, update=True)
@@ -962,8 +1002,9 @@ try:
     test_stop_time = time.time()
     print(f"{fgColors.bBlue}Test took {test_stop_time-test_start_time:.3f} seconds{fgColors.endc}")
     print(f"{fgColors.bBlue}Test completed, to exit, close figure{fgColors.endc}")
-    plt.show(block=True)
-    print("\nFigure closed... exit program")
+    if os.environ.get("BATCH_MODE") is None:
+        plt.show(block=True)
+        print("\nFigure closed... exit program")
 
 except (KeyboardInterrupt, SystemExit) as ex:
     if "tp" in locals():
