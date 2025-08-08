@@ -6,44 +6,55 @@
 pdcConfig:
   #Values -- 0x1 = PDC0, 0x2 = PDC1, 0x4=PDC2, 0x8=PDC3, 0xF=all PDCs
   # NOTE for getSpadTcrUcrCcrUsingFlag: a single PDC at the time gives better results
-  pdcAcq: 0x1
+  pdcAcq: 0xF
 
   registers:
     #Configure CFG_STATUS_A
     #Values -- 0x8000 = PDC_CFG, 0x4000 = CTLCFG, 0x2000 = PDC_STATUS, 0x1000 = PDC_STATUS_ALL, 0x0007 - ALL CTL_STATUS
-    scsa: 0x0000 
+    #Default 0x1000 (getDsumOnCoincidence), 0x0000 (getSpadTcrU*)
+    scsa: 0x1000 
     #Configure CTL_DATA_A
     #Values --
     scda: 0x00000
     #Configure PDC_DATA_A
     #Values -- 0x0100 = DSUM, 0x00F7 = ZPP
-    spda: 0x00F7
-    #Values -- 14.4 - 18100 [ns]
-    #Default 150.0
-    hold_time: 150.0
+    spda: 0x0100
+    #Values -- 14.4 - 18100 [ns] 
+    #Default 50.0 (getDsumOnCoincidence), 150.0 (getSpadTcrU*)
+    hold_time: 50.0
     #Values -- 3.4 - 58.6 [ns]
-    #Default 10.0
+    #Default 10.0 
     recharge_time: 10.0
     #Vaues -- 1.6 - 55.3 [ns]
-    #Default 10.0
-    flag_time: 10.0
+    #Default 2.0 (getDsumOnCoincidence), 10.0 (getSpadTcrU*)
+    flag_time: 2.0
 
   pattern:
     pdc0: "0xffffffffffffffff"
     pdc1: "0xffffffffffffffff"
     pdc2: "0xffffffffffffffff"
     pdc3: "0xffffffffffffffff"
+  #pattern:
+  #  pdc0: "0xfff4ffe7fffffffd"
+  #  pdc1: "0xffffffffff77fffd" 
+  #  pdc2: "0xfffefbfbff7bf7ff" 
+  #  pdc3: "0x7bff7ff7fdffffff" 
 
   coincidence:
     # coincidence windows of X clock cycles
     #Values -- integer >0
+    #Default 1
     window_width: 1
     # number of PDC channel for a coincidence
     #Values -- 1 to max number of PDCs
-    nchannels_threshold: 1 #3
+    #Default 3
+    nchannels_threshold: 1
     # number of hits per PDC
     #Values -- integer >0
+    #Default 1
     nhits: 1
+
+  hvBias: 49 #in -V, default 49
 
 ###########################################################################
 #
@@ -52,8 +63,8 @@ pdcConfig:
 ###########################################################################
 dataConfig:
   name: "test" #addition to the end of the name string, for CSV data file
-  savePlot: 1 #BOOL value: 0=False, 1=True
-  saveYaml: 1 #BOOL value: 0=False, 1=True
+  savePlot: 0 #BOOL value: 0=False, 1=True
+  saveYaml: 0 #BOOL value: 0=False, 1=True
 
   #### SCRIPT SPECIFIC - ignore for scripts not being used####
   #getSpadTcrUsingFlag AND getSpadTcrUcrCcrUsingFlag
@@ -71,6 +82,6 @@ dataConfig:
 
   #getDsum
   #Units of seconds. If -1, then no limit on runtime
-  maxRunTime: 30
+  maxRunTime: -1
   #If -1, then no limit on number of events
   maxEvents: -1
