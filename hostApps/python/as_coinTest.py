@@ -24,6 +24,7 @@ from itertools import chain
 import statistics
 import matplotlib.pyplot as plt
 import yaml
+import pyvisa
 
 # custom modules
 from modules.fgColors import fgColors
@@ -71,6 +72,7 @@ zynq.init()
 #       pdcEn=0x8 -> PDC3
 #       pdcEn=0xF -> PDC0, PDC1, PDC2, PDC3
 icp = initCtlPdcFromClient(client=client, sysClkPrd=10e-9, pdcEn=pdcConfig_in['pdcAcq'])
+icp.print()
 
 # -----------------------------------------------
 # --- set system clock period
@@ -85,22 +87,7 @@ icp.resetCtl()
 # -----------------------------------------------
 # --- configure controller packet
 # -----------------------------------------------
-"""# NOTE always set SCSA register first to store other configuration registers in HDF5
-# configure CFG_STATUS_A
-    # 0x8000 = PDC_CFG
-    # 0x4000 = CTL_CFG
-    # 0x2000 = PDC_STATUS
-    # 0x1000 = PDC_STATUS_ALL
-    # 0x0007 = ALL CTL_STATUS
-SCSA = 0x1000
-# configure CTL_DATA_A
-SCDA = 0x0000
-# configure PDC_DATA_A
-    # 0x0100 = DSUM
-    # 0x00F7 = ZPP
-SPDA = 0x0100"""
 icp.setCtlPacket(bank=packetBank.BANKA, SCS=pdcConfig_in['registers']['scsa'], SCD=pdcConfig_in['registers']['scda'], SPD=pdcConfig_in['registers']['spda'])
-
 
 # -----------------------------------------------
 # --- configure the Controller FSM
@@ -452,14 +439,6 @@ sectionPrint("enable PDC SPADs")
 # NOTE: To enable different SPADs for each PDC, use the following method:
 # NOTE: Use another script to identify screamers and disable them.
 #       Here, it is hardcoded as an example, user must find the appropriated values for each Head board.
-#client.runPrint(f"pdcSpad --verbose 4 --pattern {0xdfdff7ffffffffff} --spdc 0 --mode NONE;") # PDC0
-#client.runPrint(f"pdcSpad --verbose 4 --pattern {0xeffeffbeffffffff} --spdc 1 --mode NONE;") # PDC1
-#client.runPrint(f"pdcSpad --verbose 4 --pattern {0xffffffffffffffff} --spdc 2 --mode NONE;") # PDC2
-#client.runPrint(f"pdcSpad --verbose 4 --pattern {0xffffffffffffffff} --spdc 3 --mode NONE;") # PDC3
-#client.runPrint(f"pdcSpad --verbose 4 --pattern {0xffbfdffd97ffddff} --spdc 4 --mode NONE;") # PDC4
-#client.runPrint(f"pdcSpad --verbose 4 --pattern {0xffbbdfffffffdfff} --spdc 5 --mode NONE;") # PDC5
-#client.runPrint(f"pdcSpad --verbose 4 --pattern {0xffff7bfffff7efff} --spdc 6 --mode NONE;") # PDC6
-#client.runPrint(f"pdcSpad --verbose 4 --pattern {0xff7ffbdfbfeffff3} --spdc 7 --mode NONE;") # PDC7
 client.runPrint(f"pdcSpad --verbose 4 --pattern {pdcConfig_in['pattern']['pdc0']} --spdc 0 --mode NONE") 
 client.runPrint(f"pdcSpad --verbose 4 --pattern {pdcConfig_in['pattern']['pdc1']} --spdc 1 --mode NONE") 
 client.runPrint(f"pdcSpad --verbose 4 --pattern {pdcConfig_in['pattern']['pdc2']} --spdc 2 --mode NONE") 
@@ -494,6 +473,33 @@ client.runPrint(f"ctlCfg -a COTH -r 0x{cothReg:04x} -g")
 
 
 # ---------------------------------------
+# --- Connect to Keysight DC Power Supply
+# ---------------------------------------
+rm = pyvisa.ResourceManager('@py')
+
+foundResources = rm.list_resources()
+if 'ASRL/dev/ttyUSB1::INSTR' not in foundResources:
+    print('Could not find device in expected location - try unplugging')
+    sys.exit()
+
+resource = 'ASRL/dev/ttyUSB1::INSTR'
+print('opening resource: ' + resource)
+inst = rm.open_resource(resource, write_termination = '\n',read_termination='\n')
+print(f'Device: {inst.query("*IDN?")}')
+systHealth = inst.query("*TST?")
+if '0' in systHealth:
+    print('All good')
+    inst.write("SYST:BEEP")
+else:
+    print(f"Failed system health: {systHealth}")
+
+print('Ensure that the output is not on while setting proper values')
+if int(inst.query("OUTP?")) == 1:
+    print("output is on - turn it off")
+    inst.write("OUTP OFF")
+
+
+"""# ---------------------------------------
 # --- notify user of manual steps
 # ---------------------------------------
 try:
@@ -501,8 +507,27 @@ try:
     input("Press [enter] key to continue")
 except KeyboardInterrupt:
     print("\nKeyboard Interrupt: exit program")
+    sys.exit()"""
+
+# ---------------------------------------
+# --- Turn on bias
+# ---------------------------------------
+
+try:
+    print(f"{fgColors.bYellow}Apply HV? {fgColors.endc}")
+    input("Press [enter] key to continue")
+except KeyboardInterrupt:
+    print("\nKeyboard Interrupt: exit program")
     sys.exit()
 
+#Ramp output voltage to 49 in 1V steps
+inst.write("APPL 0.0, 0.0")
+inst.write("OUTP ON")
+
+for vUp in range(pdcConfig_in['hvBias']+1):
+    time.sleep(0.2)
+    inst.write(f"APPL {float(vUp)}, 0.1")
+time.sleep(1.0)
 
 # ------------------------------------------------
 # --- start Controller FSM acquisition
@@ -517,12 +542,22 @@ client.runPrint(f"ctlCfg -a FSMM -r 0x{fsmmReg|0x3:04x} -g"); # starts the FSM
 print("\n=== READY TO OPERATE ===")
 # NOTE: Implement here a specific routine
 try:
-    print(f"{fgColors.bYellow}Turn off HV here{fgColors.endc}")
+    print(f"{fgColors.bYellow}Turn off HV?{fgColors.endc}")
     input("Press [enter] key to exit")
 except KeyboardInterrupt:
     print("\nKeyboard Interrupt: exit program")
 
 finally:
+    #Turn off HV
+    #Ramp output voltage down back to 0 in 1V steps
+    for vDown in range(pdcConfig_in['hvBias'],-1,-1):
+        time.sleep(0.2)
+        inst.write(f"APPL {float(vDown)}, 0.1")
+
+    print(f"Run over - turn off output")
+    inst.write("APPL 0.0, 0.0")
+    inst.write("OUTP OFF")
+
     client.runPrint("stop")
     sys.exit()
 
