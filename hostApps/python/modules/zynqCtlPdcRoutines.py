@@ -102,7 +102,7 @@ class initCtlPdcFromClient():
         full reset of the Controller FSM
         does not reset the PDCs
         """
-        sectionPrint("reset of the controller")
+        sectionPrint("reset of the FSM controller")
         self.client.runPrint('ctlCmd -c RSTN_SYS')
 
     def resetPDCSYS(self):
@@ -211,7 +211,7 @@ class initCtlPdcFromClient():
         self.client.runPrint(f"ctlCfg -a PDC1 -r 0x{(self.pdcEnUser>>16)&0xFFFF:04x} -g")  # enable PDC
         self.client.runPrint(f"ctlCfg -a CFG0 -r 0x{self.pdcEnUser&0xFFFF:04x} -g")        # enable PDC configuration
         self.client.runPrint(f"ctlCfg -a CFG1 -r 0x{(self.pdcEnUser>>16)&0xFFFF:04x} -g")  # enable PDC configuration
-        self.client.runPrint( "ctlCfg -a PRST -r 0x0000   -g")                             # reset all PDCs
+        self.client.runPrint( "ctlCfg -a PRST -r 0x0000 -g")                               # reset all PDCs
 
         # remove reset from PDCs
         if self.nPdcMax == 8:
