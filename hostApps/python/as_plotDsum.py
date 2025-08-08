@@ -156,10 +156,11 @@ DEFAULT_TIMEX = True
 DEFAULT_LOGY = False
 
 # number of supported PDCs
-N_PDC_MAX = 8
+N_PDC_MAX = 4 #8
 
 # database of the data
 dp = None
+fname = "_"+dataConfig_in['name'] if len(dataConfig_in['name'])>0 else ""
 
 # menu to save as data
 root = Tk()
@@ -191,7 +192,6 @@ class dsumPlotter:
         self.timex = timex
         self.logy = logy
         self.label = "DSUM"
-        self.name = "_"+dataConfig_in['name'] if len(dataConfig_in['name'])>0 else ""
         self.clearData()
         self.initAxs()
         self.initLine()
@@ -580,7 +580,6 @@ class ClearPlotData(ToolBase):
             autosizeAll(dp=dp)
 
 
-#root = Tk()
 class DownloadData(ToolBase):
     """Download digital data"""
     #default_keymap = 'd' # keyboard shortcut
@@ -631,7 +630,6 @@ def save():
             integStr+="s"
         if dp.T0 != -1 and dp.TNOW != -1:
             integTime=dp.TNOW-dp.T0
-            #integStr+=f"_{integTime.strftime("%d_%Hh%Mm%S")}"
             if integTime.days > 0:
                 integStr+=f"_{integTime.days:02d}d"
             integStr+=f"_{time.strftime('%Hh%Mm%S', time.gmtime(integTime.seconds))}"
@@ -646,7 +644,7 @@ def save():
     userFile = str(asksaveasfilename(filetypes=files, defaultextension=files,
                                      initialdir=initialdir,
                                      confirmoverwrite=True,
-                                     initialfile=f"{dateStr}_DSUM{integStr}.csv"))
+                                     initialfile=f"{dateStr}_DSUM{integStr}{fname}.csv"))
     if not userFile or userFile == '()':
         # user clicked cancel or clicked ok on empty file name
         print(f"{fgColors.red}ERROR: No file specified. No data exported.{fgColors.endc}")
@@ -665,6 +663,20 @@ def save():
 #radio_group = None
     #Attribute to group 'radio' like tools (mutually exclusive).
     #str that identifies the group or None if not belonging to a group.
+
+
+def savePlot():
+    """
+    save plot to a png file
+    """
+    dateStr=datetime.datetime.now().strftime("%Y%m%d_%Hh%Mm%S")
+    filename = f"{dateStr}_DSUM{dateStr}{fname}.png"
+    datafile = os.path.join(Path(saveCsvInitialDir), filename)
+    if not os.path.isdir(datafile):
+        print(f"{fgColors.red}ERROR: Specified path '{userPath}' is not valid. No data exported.{fgColors.endc}")
+        return ""
+    print(f"{fgColors.green}Saving plot to file {datafile}{fgColors.endc}")
+    self.fig.savefig(datafile)  
 
 
 # -----------------------------------------------
@@ -755,7 +767,6 @@ def parse_files(dp: dsumPlotter):
 # Switch to disable running parsing in a separate thread from gui
 run_thread = True
 try:
-    nPdcInput = 1 if pdcConfig_in['pdcAcq'] < 10 else 4 #AS - can only account for ONE head board
     dp = dsumPlotter(figName="DSUM PLOTTER",
                      nPdcMax=N_PDC_MAX,
                      autofit=DEFAULT_AUTOFIT,
@@ -802,14 +813,20 @@ try:
         dp.pausePlot(pauseTime=0.001)
 
 
-except (KeyboardInterrupt, SystemExit) as ex:
+except (KeyboardInterrupt, SystemExit, tkinter.KeyboardInterrupt) as ex:
     if "dp" in locals():
         dp.run = False
     if "thread_parse" in locals():
         thread_parse.join()
-    if isinstance(ex, KeyboardInterrupt):
-        print(f"\n{fgColors.yellow}Keyboard Interrupt: exit program{fgColors.endc}")
-    else:
+    if isinstance(ex, SystemExit):
         print(f"\n{fgColors.yellow}Program interrupted: exit program{fgColors.endc}")
+    else:
+        print(f"\n{fgColors.yellow}Keyboard Interrupt: exit program{fgColors.endc}")
+finally:
+    #automatically save figure and data
+    if dataConfig_in['savePlot']:
+        savePlot()
+    DownloadData.trigger()
+    root.close()
     sys.exit()
 
