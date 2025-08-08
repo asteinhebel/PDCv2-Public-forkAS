@@ -230,7 +230,14 @@ try:
     maxEvents = dataConfig_in['maxEvents'] if dataConfig_in['maxEvents']>0 else 1e9
     t_start = datetime.datetime.now()
     t_elapse = datetime.timedelta(seconds=dataConfig_in['maxRunTime']) if dataConfig_in['maxRunTime']>0 else datetime.timedelta(seconds=1e9)
+    
+    #remove existing h5 files
+    for f in os.listdir(HDF5_DATA_DIR):
+        os.remove(os.path.join(HDF5_DATA_DIR, f))
+
     while (countedEvents<maxEvents) and (datetime.datetime.now()-t_start<t_elapse):
+
+        #begin data collection 
         db = h5Reader(deleteAfter=True,
                       #hfRelPath="HDF5",
                       hfAbsPath=HDF5_DATA_DIR,
@@ -238,7 +245,6 @@ try:
                       dsumPrd=DSUM_SAMPLE_NCLK,
                       hfFile="")
 
-        # nothing new to plot
         if db.newFileReady():
             # -----------------------------------------------
             # --- Open HDF5 file to get Controller Data
@@ -246,7 +252,7 @@ try:
             # get all PDC data for a given event in db
             dp.getAllPdcData(db=db)
             countedEvents+=1
-        else:
+        else: # nothing new to plot
             time.sleep(0.1)
 
 except (KeyboardInterrupt, SystemExit) as ex:
