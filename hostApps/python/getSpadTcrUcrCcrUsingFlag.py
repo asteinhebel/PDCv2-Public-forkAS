@@ -800,7 +800,7 @@ try:
     zp = zppPlotter(figName="ZPP PLOTTER",
                     nPdcMax=nPdcInput,
                     nSpad=icp.nSpad,
-                    zppPer=dataConfig_in['zppOptimizePer'],
+                    zppPer=dataConfig_in['zppPrd'],
                     doSavePlot=False,
                     saveFinalPlot=dataConfig_in['savePlot'])
 
