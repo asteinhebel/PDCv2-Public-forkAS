@@ -54,7 +54,17 @@ pdcConfig:
     #Default 1
     nhits: 1
 
+instrumentConfig:
   hvBias: 49 #in -V, default 49
+
+  #oscilloscope settings
+  runWithLED: True
+  generatorPort: 1
+  pulse_frequency: 10.0 #Hz
+  pulse_amplitude: 0.9 #Vpp
+  pulse_offset: 0.1 #V
+  pulse_dutyCycle: 10 #%
+
 
 ###########################################################################
 #

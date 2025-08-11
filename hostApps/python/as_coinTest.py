@@ -44,6 +44,7 @@ from modules.h5Reader import *
 with open('config_all.yaml','r') as f:
     config_in = yaml.safe_load(f)
     pdcConfig_in = config_in['pdcConfig']
+    instConfig_in = config_in['instrumentConfig']
     dataConfig_in = config_in['dataConfig']
     config_out = config_in.copy()
 
@@ -476,38 +477,27 @@ client.runPrint(f"ctlCfg -a COTH -r 0x{cothReg:04x} -g")
 # --- Connect to Keysight DC Power Supply
 # ---------------------------------------
 rm = pyvisa.ResourceManager('@py')
+resource_dcps = 'ASRL/dev/ttyUSB0::INSTR'
 
 foundResources = rm.list_resources()
-if 'ASRL/dev/ttyUSB1::INSTR' not in foundResources:
+if resource_dcps not in foundResources:
     print('Could not find device in expected location - try unplugging')
     sys.exit()
 
-resource = 'ASRL/dev/ttyUSB1::INSTR'
-print('opening resource: ' + resource)
-inst = rm.open_resource(resource, write_termination = '\n',read_termination='\n')
-print(f'Device: {inst.query("*IDN?")}')
-systHealth = inst.query("*TST?")
+print('opening resource: ' + resource_dcps)
+inst_dcps = rm.open_resource(resource_dcps, write_termination = '\n',read_termination='\n')
+print(f'DCPS Device: {inst_dcps.query("*IDN?")}')
+systHealth = inst_dcps.query("*TST?")
 if '0' in systHealth:
     print('All good')
-    inst.write("SYST:BEEP")
+    inst_dcps.write("SYST:BEEP")
 else:
     print(f"Failed system health: {systHealth}")
 
 print('Ensure that the output is not on while setting proper values')
-if int(inst.query("OUTP?")) == 1:
+if int(inst_dcps.query("OUTP?")) == 1:
     print("output is on - turn it off")
-    inst.write("OUTP OFF")
-
-
-"""# ---------------------------------------
-# --- notify user of manual steps
-# ---------------------------------------
-try:
-    print(f"{fgColors.bYellow}Apply HV here{fgColors.endc}")
-    input("Press [enter] key to continue")
-except KeyboardInterrupt:
-    print("\nKeyboard Interrupt: exit program")
-    sys.exit()"""
+    inst_dcps.write("OUTP OFF")
 
 # ---------------------------------------
 # --- Turn on bias
@@ -521,20 +511,49 @@ except KeyboardInterrupt:
     sys.exit()
 
 #Ramp output voltage to 49 in 1V steps
-inst.write("APPL 0.0, 0.0")
-inst.write("OUTP ON")
+inst_dcps.write("APPL 0.0, 0.0")
+inst_dcps.write("OUTP ON")
 
-for vUp in range(pdcConfig_in['hvBias']+1):
+for vUp in range(instConfig_in['hvBias']+1):
     time.sleep(0.2)
-    inst.write(f"APPL {float(vUp)}, 0.1")
+    inst_dcps.write(f"APPL {float(vUp)}, 0.1")
 time.sleep(1.0)
+
+
+# ---------------------------------------
+# --- Connect to Rohde & Schwarz Oscilloscope and Waveform Generator
+# ---------------------------------------
+if instConfig_in['runWithLED']:
+    resource_scope = 'USB0::2733::407::1335.5050k04-200657::0::INSTR'
+    if resource_scope not in foundResources:
+        print('Could not find device in expected location - try unplugging')
+        sys.exit()
+
+    print('opening resource: ' + resource_scope)
+    inst_scope = rm.open_resource(resource_scope, write_termination = '\n',read_termination='\n')
+    print(f'Scope Device: {inst_scope.query("*IDN?")}')
+
+    # ---------------------------------------
+    # --- Setup and start LED
+    # ---------------------------------------
+    pulse_width = instConfig_in['pulse_dutyCycle']/instConfig_in['pulse_frequency']/100.
+    inst_scope.write(f"WGEN{instConfig_in['generatorPort']}:SOUR FUNC; *OPC")
+    inst_scope.write(f"WGEN{instConfig_in['generatorPort']}:FUNC:SEL PULS; *OPC")
+    inst_scope.write(f"WGEN{instConfig_in['generatorPort']}:FREQ {instConfig_in['pulse_frequency']}; *OPC")
+    inst_scope.write(f"WGEN{instConfig_in['generatorPort']}:FUNC:PULS:WIDT {pulse_width}; *OPC")
+    inst_scope.write(f"WGEN{instConfig_in['generatorPort']}:OUTP:LOAD FIFT; *OPC")
+    inst_scope.write(f"WGEN{instConfig_in['generatorPort']}:VOLT:OFFS {instConfig_in['pulse_offset']}; *OPC")
+    inst_scope.write(f"WGEN{instConfig_in['generatorPort']}:VOLT:VPP {instConfig_in['pulse_amplitude']}; *OPC")
+
+    #enable output 
+    print(f"{fgColors.bYellow}Starting LED pulse {fgColors.endc}")
+    inst_scope.write(f"WGEN{instConfig_in['generatorPort']}:ENAB ON; *OPC")
 
 # ------------------------------------------------
 # --- start Controller FSM acquisition
 # ------------------------------------------------
 sectionPrint("start Controller FSM acquisition")
 client.runPrint(f"ctlCfg -a FSMM -r 0x{fsmmReg|0x3:04x} -g"); # starts the FSM
-
 
 # ------------------------
 # --- ready to operate ---
@@ -548,15 +567,18 @@ except KeyboardInterrupt:
     print("\nKeyboard Interrupt: exit program")
 
 finally:
+    #If enabled, turn off LED
+    if instConfig_in['runWithLED']:
+        inst_scope.write(f"WGEN{instConfig_in['generatorPort']}:ENAB OFF; *OPC")
     #Turn off HV
     #Ramp output voltage down back to 0 in 1V steps
-    for vDown in range(pdcConfig_in['hvBias'],-1,-1):
+    for vDown in range(instConfig_in['hvBias'],-1,-1):
         time.sleep(0.2)
-        inst.write(f"APPL {float(vDown)}, 0.1")
+        inst_dcps.write(f"APPL {float(vDown)}, 0.1")
 
     print(f"Run over - turn off output")
-    inst.write("APPL 0.0, 0.0")
-    inst.write("OUTP OFF")
+    inst_dcps.write("APPL 0.0, 0.0")
+    inst_dcps.write("OUTP OFF")
 
     client.runPrint("stop")
     sys.exit()
