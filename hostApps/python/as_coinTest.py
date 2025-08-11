@@ -494,7 +494,7 @@ if '0' in systHealth:
 else:
     print(f"Failed system health: {systHealth}")
 
-print('Ensure that the output is not on while setting proper values')
+#Ensure that the output is not on while setting proper values
 if int(inst_dcps.query("OUTP?")) == 1:
     print("output is on - turn it off")
     inst_dcps.write("OUTP OFF")
@@ -514,6 +514,7 @@ except KeyboardInterrupt:
 inst_dcps.write("APPL 0.0, 0.0")
 inst_dcps.write("OUTP ON")
 
+print("HV Ramping up....")
 for vUp in range(instConfig_in['hvBias']+1):
     time.sleep(0.2)
     inst_dcps.write(f"APPL {float(vUp)}, 0.1")
@@ -532,6 +533,11 @@ if instConfig_in['runWithLED']:
     print('opening resource: ' + resource_scope)
     inst_scope = rm.open_resource(resource_scope, write_termination = '\n',read_termination='\n')
     print(f'Scope Device: {inst_scope.query("*IDN?")}')
+
+    #synchronize time
+    timeNow = time.strftime("%H,%M,%S", time.localtime())
+    inst_scope.write(f"SYST:TIME {timeNow}")
+    # AS - only good up to one second! How to get better timing resolution of LED signal...?
 
     # ---------------------------------------
     # --- Setup and start LED
@@ -572,6 +578,7 @@ finally:
         inst_scope.write(f"WGEN{instConfig_in['generatorPort']}:ENAB OFF; *OPC")
     #Turn off HV
     #Ramp output voltage down back to 0 in 1V steps
+    print("HV ramping down....")
     for vDown in range(instConfig_in['hvBias'],-1,-1):
         time.sleep(0.2)
         inst_dcps.write(f"APPL {float(vDown)}, 0.1")
