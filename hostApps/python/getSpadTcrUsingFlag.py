@@ -87,6 +87,7 @@ client = sshClientHelper.sshClientFromCfg(hostCfgName="zcudev")
 # -----------------------------------------------
 sectionPrint("prepare Zynq platform")
 zynq = zynqDataTransfer(sshClientZynq=client)
+zynq.hexAppOutPathDefault = os.path.join(HDF5_DATA_DIR, os.path.splitext(scriptName)[0])
 zynq.init()
 
 # -----------------------------------------------
@@ -149,8 +150,7 @@ icp.preparePDC()
 # --- 4096 for a complete 3D SPAD array
 # --- 64 for the embedded 2D CMOS SPADs
 # -----------------------------------------------
-icp.nSpad = 64
-icp.nSpad = 62
+icp.nSpad = int(os.environ.get("N_SPAD", default=64))
 
 # --------------------------
 # --- configure the PDCs ---
