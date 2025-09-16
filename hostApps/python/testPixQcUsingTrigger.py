@@ -54,6 +54,9 @@ test_start_time = time.time()
 # database of the data
 tp = None
 
+# NOTE: user can set hold, recharge and flag time using the following environment variables:
+#       HOLD_TIME_NS, RECH_TIME_NS, FLAG_TIME_NS
+
 # -----------------------------------------------
 # --- open a connection with the ZCU102 board
 # -----------------------------------------------
@@ -71,7 +74,15 @@ zynq.init()
 # -----------------------------------------------
 # --- prepare controller for acquisition
 # -----------------------------------------------
-icp = initCtlPdcFromClient(client=client, sysClkPrd=10e-9, pdcEn=0xF)
+# NOTE: select the PDC to use:
+#       pdcEn=0x1 -> PDC0
+#       pdcEn=0x2 -> PDC1
+#       pdcEn=0x4 -> PDC2
+#       pdcEn=0x8 -> PDC3
+#       pdcEn=0xF -> PDC0, PDC1, PDC2, PDC3
+# NOTE: set environment variable PDC_EN tp set which PDCs to use
+pdcEn = int(os.environ.get("PDC_EN", default=0xF), 0)
+icp = initCtlPdcFromClient(client=client, sysClkPrd=10e-9, pdcEn=pdcEn)
 
 
 # -----------------------------------------------
@@ -155,9 +166,9 @@ PDC_SETTING.PIXL = PIXL
 
 # === TIME REGISTER ===
 print("\n=== TIME REGISTER ===")
-HOLD_TIME = 150.0
-RECH_TIME = 10.0
-FLAG_TIME = 10.0
+HOLD_TIME = float(os.environ.get("HOLD_TIME_NS", default=150.0))
+RECH_TIME = float(os.environ.get("RECH_TIME_NS", default=10.0))
+FLAG_TIME = float(os.environ.get("FLAG_TIME_NS", default=10.0))
 client.runPrint(f"pdcTime --hold {HOLD_TIME} --rech {RECH_TIME} --flag {FLAG_TIME} -g")
 PDC_SETTING.TIME = client.runReturnSplitInt('pdcTime -g')
 
@@ -303,7 +314,7 @@ client.run(f"ctlCfg -a FSMM -r 0x0101 -g"); # triggered by a COMMAND
 # --- Class to generate the display of the results
 # --------------------------------------------------
 class tcrPlotter:
-    def __init__(self, figName, nPdcMax, nSpad, doSavePlot=False, dataPath="default"):
+    def __init__(self, figName, nPdcMax, nSpad, doSavePlot=False, doSaveGif=False, dataPath="default"):
         """
         create an empty object with no data, but with figure properly formatted
         """
@@ -335,7 +346,9 @@ class tcrPlotter:
         self.axTcr = 0
         self.axPop = 1
 
-        self.doSavePlot=doSavePlot
+        self.dataFileName = ""
+        self.doSavePlot = doSavePlot
+        self.doSaveGif = doSaveGif
         self.plotIdx = 0
         self.fig = None
         self.dateStrPlot = datetime.datetime.now().strftime("%Y%m%d_%Hh%Mm%S")
@@ -350,7 +363,9 @@ class tcrPlotter:
         # add script name to path
         self.dataPath = Path(os.path.join(self.dataPath, os.path.splitext(scriptName)[0]))
         # path to save plot
-        self.plotPath = Path(os.path.join(self.dataPath, 'FIG', self.dateStrPlot))
+        self.plotPath = Path(os.path.join(self.dataPath, 'PNG'))
+        # add a sub folder for all the images of the same measure
+        self.plotGifPath = Path(os.path.join(self.plotPath, self.dateStrPlot))
 
         # init plot
         self.initPlot()
@@ -384,8 +399,8 @@ class tcrPlotter:
                                                                      label=self.label[iPdc])
             # sorted population for each PDC
             self.linePopu[iPdc] = (self.axes.flat[self.axPop].plot(self.spad100[iPdc],
-                                                                  self.spadPop[iPdc],
-                                                                  label=self.label[iPdc]))[0]
+                                                                   self.spadPop[iPdc],
+                                                                   label=self.label[iPdc]))[0]
         # cumulative population of all PDCs
         self.lineCumulLabel = f"All PDCs"
         self.lineCumul = (self.axes.flat[self.axPop].plot(self.spadCumul100,
@@ -489,7 +504,9 @@ class tcrPlotter:
 
         self.updateLegend()
         self.pausePlot(pauseTime=0.001)
-        self.savePlot(iPdc=iPdc)
+        if self.doSaveGif:
+            # save a picture at each update to generate a gif
+            self.savePlot(iPdc=iPdc, doSaveGif=True)
         self.checkExit()
 
 
@@ -521,20 +538,26 @@ class tcrPlotter:
             self.spadEn[iPdc] -= 1
             self.spadDis[iPdc] += 1
 
+
+    def getFileName(self):
+        if self.dataFileName == "":
+            dateStr=datetime.datetime.now().strftime("%Y%m%d_%Hh%Mm%S")
+            self.dataFileName = f"{dateStr}_TRG_{int(measTime*1000):d}ms"
+        return self.dataFileName
+
+
     def saveData(self):
         """
         save data to a CSV file
         """
-        dateStr=datetime.datetime.now().strftime("%Y%m%d_%Hh%Mm%S")
+        #dateStr=datetime.datetime.now().strftime("%Y%m%d_%Hh%Mm%S")
         pdcStr=""
         df = pd.DataFrame()
         for iPdc in range(0, self.nPdcMax):
             # per PDC data
             if self.pdcValid[iPdc]:
                 # only if data is valid
-                if pdcStr != "":
-                    pdcStr+='_'
-                pdcStr+=f"PDC{iPdc}"
+                pdcStr+=f"_PDC{iPdc}"
 
                 dfNew = pd.DataFrame(data=self.spadIdx, columns=[f"SPAD_idx{iPdc}"])
                 df = pd.concat([df, dfNew], axis=1)
@@ -547,21 +570,31 @@ class tcrPlotter:
 
         if df.size > 0:
             # if there are data to export
-            filename = f"{dateStr}_TRG_{pdcStr}_{int(measTime*1000):d}ms.csv"
+            filename = f"{self.getFileName()}{pdcStr}.csv"
             self.dataPath.mkdir(parents=True, exist_ok=True)
             datafile = os.path.join(self.dataPath, filename)
             print(f"{fgColors.green}Saving data to file {datafile}{fgColors.endc}")
             df.to_csv(datafile, sep=';', index=False, float_format="%.3E")
 
-    def savePlot(self, iPdc=None):
+    def savePlot(self, iPdc=None, doSaveGif=False):
         """
         save plot to a png file
         """
         if self.fig and self.doSavePlot:
             if iPdc == None or self.pdcValid[iPdc]:
-                filename = f"TRG_{self.plotIdx:06d}.png"
+                if iPdc == None:
+                    pdcStr = ""
+                    for iPdc in range(0, self.nPdcMax):
+                        if self.pdcValid[iPdc]:
+                            pdcStr+=f"_PDC{iPdc}"
+                else:
+                    pdcStr=f"_PDC{iPdc}"
+                filename = f"{self.getFileName()}{pdcStr}_{self.plotIdx:06d}.png"
                 self.plotPath.mkdir(parents=True, exist_ok=True)
-                datafile = os.path.join(self.plotPath, filename)
+                if doSaveGif:
+                    datafile = os.path.join(self.plotPathGif, filename)
+                else:
+                    datafile = os.path.join(self.plotPath, filename)
                 print(f"saving plot to file {datafile}")
                 self.fig.savefig(datafile)
                 self.plotIdx += 1
@@ -703,7 +736,7 @@ try:
     tp = tcrPlotter(figName="PIX TRG PLOTTER",
                     nPdcMax=icp.nPdcMax,
                     nSpad=icp.nSpad,
-                    doSavePlot=False)
+                    doSavePlot=os.environ.get("SAVE_PLOT", default=False))
 
     # ---------------------------------------
     # --- Pixel responsiveness logic
@@ -721,6 +754,9 @@ try:
     else:
         # running everything in the main
         test_all_pixels(tp=tp, update=True)
+
+    # save plot if enabled by user
+    tp.savePlot()
 
     # 2- Number of good pixel per PDC
     sectionPrint("Number of good pixel per PDC")

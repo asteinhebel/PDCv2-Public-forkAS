@@ -58,7 +58,7 @@ test_start_time = time.time()
 tp = None
 
 # time to wait for each setting
-measTime = 0.2  # second
+measTime = float(os.environ.get("MEAS_TIME", default=0.2)) # second
 
 # NOTE: user can set hold, recharge and flag time using the following environment variables:
 #       HOLD_TIME_NS, RECH_TIME_NS, FLAG_TIME_NS
@@ -93,7 +93,15 @@ zynq.init()
 # -----------------------------------------------
 # --- prepare controller for acquisition
 # -----------------------------------------------
-icp = initCtlPdcFromClient(client=client, sysClkPrd=10e-9, pdcEn=0xF)
+# NOTE: select the PDC to use:
+#       pdcEn=0x1 -> PDC0
+#       pdcEn=0x2 -> PDC1
+#       pdcEn=0x4 -> PDC2
+#       pdcEn=0x8 -> PDC3
+#       pdcEn=0xF -> PDC0, PDC1, PDC2, PDC3
+# NOTE: set environment variable PDC_EN tp set which PDCs to use
+pdcEn = int(os.environ.get("PDC_EN", default=0xF), 0)
+icp = initCtlPdcFromClient(client=client, sysClkPrd=10e-9, pdcEn=pdcEn)
 
 
 # -----------------------------------------------
@@ -620,7 +628,7 @@ class tcrPlotter:
         """
         save data to a CSV file
         """
-        dateStr=datetime.datetime.now().strftime("%Y%m%d_%Hh%Mm%S")
+        #dateStr=datetime.datetime.now().strftime("%Y%m%d_%Hh%Mm%S")
         pdcStr=""
         df = pd.DataFrame()
         for iPdc in range(0, self.nPdcMax):
@@ -872,11 +880,11 @@ try:
         # update a last time
         tp.updatePlot()
 
-        # save plot if enabled by user
-        tp.savePlot()
-
     else:
         test_all_pixels(tp=tp, update=True)
+
+    # save plot if enabled by user
+    tp.savePlot()
 
     # 2- estimate the TCR of the array with all pixels enabled
     sectionPrint("Estimate the TCR of the array (all pixels)")
@@ -974,6 +982,9 @@ try:
     tp.updateLegend()
     tp.pausePlot(pauseTime=0.001)
 
+    # export data
+    tp.saveData()
+
     # 5- enable the selected SPADs
     sectionPrint("Enable the selected SPADs")
     for iPdc in range(0, icp.nPdcMax):
@@ -986,17 +997,21 @@ try:
             client.runPrint(pdcSpadCmd)
         else:
             # for more than 64 SPADs (here the 3D SPADs), specify each register to enable
-            registerList = tp.getSpadRegister(iPdc)
             pdcSpadDisCmd = f"pdcPix --dis --spdc {iPdc} --mode NONE"
             client.runPrint(pdcSpadDisCmd)
+            # NOTE: This part of the script has been commented
+            #       to prevent all non screamer SPADs to run at the end of the script.
+            #       Use another script to enable all non screamer SPADs manually.
+            """
+            registerList = tp.getSpadRegister(iPdc)
             for addr, register in enumerate(registerList):
                 if register != 0:
                     # skippeing empty registers since previously disabled all the SPADs
                     pdcSpadCmd = f"pdcPix --addr {addr} --reg 0x{register:04x} --spdc {iPdc} --mode NONE"
                     client.runPrint(pdcSpadCmd)
-
-    # export data
-    tp.saveData()
+            """
+    # make sure the single PDC configuration bit is reset
+    client.runPrint(f"ctlCfg -a CFGS -r 0x0000 -g") # disable single configuration
 
     # total execution time
     test_stop_time = time.time()
