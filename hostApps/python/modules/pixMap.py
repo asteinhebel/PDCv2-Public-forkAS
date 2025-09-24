@@ -128,7 +128,21 @@ def idx_map(x, y):
     idx_y = (y<<2) + 15*((y & 0x0000003C)<<2)
     return idx_x + idx_y;
 
-def xy2regs(xyArray):
+def vect2regs(vect, log=False):
+    """
+    Converts a vector of pixels to the pixel enable registers of the PDC
+    Values in vect must be 0/1 or False/True
+    """
+    pdcPixReg = np.zeros(N_PDC_REG, dtype=np.uint16)
+    for iReg in range(N_PDC_REG):
+        for iPix in range(REG_N_PIX):
+            if vect[REG_N_PIX*iReg+iPix]:
+                pdcPixReg[iReg] |= (0x1 << iPix)
+        if log:
+            print(f"{iReg:>3d}:0x{pdcPixReg[iReg]:04x}")
+
+
+def xy2regs(xyArray, log=False):
     """
     Converts a X, Y based pixel array to the pixel enable registers of the PDC
     Values in xyArray must be 0/1 or False/True
@@ -144,5 +158,7 @@ def xy2regs(xyArray):
                     col = xReg*REG_NX_PIX+xPix
                     if xyArray[col, row]:
                         pdcPixReg[iReg] |= (0x1 << iPix)
+            if log:
+                print(f"{iReg:>3d}:0x{pdcPixReg[iReg]:04x}")
     return pdcPixReg
 
