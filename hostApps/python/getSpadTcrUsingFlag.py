@@ -170,7 +170,7 @@ client.runPrint("ctlCmd -c MODE_CFG")  # set PDCs to configuration mode
 # === PIXL REGISTER ===
 print("\n=== PIXL REGISTER ===")
 # active quenching of the front-end
-ACTIVE_QC_EN = 0; # 0=disabled/passive, 1=enabled/active
+ACTIVE_QC_EN = 1; # 0=disabled/passive, 1=enabled/active
 # trigger using QC front-end (FE) or digital only (DGTL)
 TRG_DGTL_FEN = 0; # 0=FE, 1=DGTL
 # enable flag output of the pixel
