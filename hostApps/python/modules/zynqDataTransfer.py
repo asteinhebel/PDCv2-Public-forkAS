@@ -11,9 +11,11 @@
 #-- Revision 1.0 - File Created
 #-- Additional Comments:
 #----------------------------------------------------------------------------------
+import numpy as np
 import sys, os
 import ipaddress
 import subprocess
+import glob
 
 # custom modules
 from modules.fgColors import fgColors
@@ -55,7 +57,8 @@ class zynqDataTransfer:
         self.hexAppPidRemote = None # started by another application
         self.hexAppPidLocal = None  # started by this application
         self.hexAppPopen = None
-        self.hexInputPath = self.serverNfsDataPath # can be overwritten by getHexAppPath()
+        self.hexInputPath = self.serverNfsDataPath # can be overwritten by getHexInputPath()
+        self.hexDataExt = ".hex"
 
         # HDF5
         self.h5Path = None
@@ -96,10 +99,11 @@ class zynqDataTransfer:
         """
         # test if hexApp is in path
         with os.popen(f"which {self.hexAppName}") as hostCmd:
-            hexAppPath = hostCmd.read().strip()
-        if len(hexAppPath) > 0:
-            if os.path.isfile(os.path.join(hexAppPath, self.hexAppName)):
-                self.hexAppPath = hexAppPath
+            hexAppInPath = hostCmd.read().strip()
+        if len(hexAppInPath) > 0:
+            #if os.path.isfile(os.path.join(hexAppPath, self.hexAppName)):
+            if os.path.isfile(hexAppInPath):
+                self.hexAppPath = os.path.dirname(hexAppInPath)
                 print(f"{fgColors.green}'{self.hexAppName}' found at '{self.hexAppPath}'.{fgColors.endc}")
                 return
         else:
@@ -263,7 +267,7 @@ class zynqDataTransfer:
             if len(PID) == 0:
                 print(f"{fgColors.red}ERROR: {self.hexAppName} app is not running on this machine.{fgColors.endc}")
             else:
-                print(f"{fgColors.red}ERROR: {self.hexAppName} app is not running {len(PID)} times on this machine.{fgColors.endc}")
+                print(f"{fgColors.red}ERROR: {self.hexAppName} app is running {len(PID)} times on this machine.{fgColors.endc}")
         return ""
 
 
@@ -295,11 +299,16 @@ class zynqDataTransfer:
         self.getHexInputPath(verbose=False)
         nFiles = 0
         for f in os.listdir(self.hexInputPath):
-            if f.endswith(".hex"):
+            if f.endswith(self.hexDataExt):
                 nFiles += 1
         return nFiles == 0
 
-    def initHex(self, autoStart=False, printParsed=False, archive=False):
+    def initHex(self,
+                autoStart=False,
+                printParsed=False,
+                archive=False,
+                exportH5=True,
+                hexReadExtraArgs=""):
         """
         hdf5 app
         """
@@ -319,26 +328,44 @@ class zynqDataTransfer:
                     hexReadOptions = ""
                     if self.hexAppName == "hexRead":
                         # hexRead do not export as HDF5 per default
-                        hexReadOptions += " --h5"
+                        if exportH5:
+                            hexReadOptions += " --h5"
                         if printParsed:
                             # debug option to print parsed data (slower execution)
                             hexReadOptions += " --print"
                         hexReadOptions += " --verbose 2"
+                    else:
+                        # NOTE: hexReadExtraArgs not supported with dma2h5
+                        hexReadExtraArgs = ""
 
                     cmd = f"{os.path.join(self.hexAppPath, self.hexAppName)} " \
                           f"{archiveOption} {hexReadOptions} " \
                           f"-i {self.serverNfsDataPath} " \
-                          f"-o {self.hexAppOutPathDefault}"
-                    print(f"{fgColors.bBlue}INFO: {cmd}{fgColors.endc}")
+                          f"-o {self.hexAppOutPathDefault} " \
+                          f"{hexReadExtraArgs} "
+                    # NOTE: hexReadExtraArgs must always be placed last because of --module option
+                    # command can be long, split per options
+                    cmdList = cmd.split(" -")
+                    for i, cmdItem in enumerate(cmdList):
+                        if i == 0:
+                            print(f"{fgColors.bBlue}INFO: {cmdItem}{fgColors.endc}")
+                        else:
+                            print(f"{fgColors.bBlue}          -{cmdItem}{fgColors.endc}")
+                    # run the command
                     self.hexAppPopen = subprocess.Popen(cmd, shell=True,
                                                         stdout=subprocess.DEVNULL,
-                                                        stderr=subprocess.DEVNULL,
-                                                        encoding='utf-8')
+                                                        encoding='utf-8') # stderr=subprocess.DEVNULL,
                     try:
                         # if an error occurs while starting the app, it is quick, otherwise, it will timeout
-                        self.hexAppPopen.communicate(timeout=0.01)
+                        out, err = self.hexAppPopen.communicate(timeout=0.1)
                         if self.hexAppPopen.returncode:
-                            print(f"{fgColors.red}ERROR: {self.hexAppName} app returned exit code {self.hexAppPopen.returncode}.{fgColors.endc}")
+                            print(f"{fgColors.red}ERROR: {self.hexAppName} app returned exit code {np.int8(self.hexAppPopen.returncode)}.{fgColors.endc}")
+                            if out is not None:
+                                print(out)
+                            if err is not None:
+                                print(f"{fgColors.red}{err}{fgColors.endc}")
+                            # leave the execution
+                            sys.exit()
                     except subprocess.TimeoutExpired:
                         # normal execution
                         pass
@@ -358,28 +385,35 @@ class zynqDataTransfer:
             # a single PID found
             with os.popen(f"cat /proc/{PID[0]}/cmdline | sed -e 's|\\x00| |g'; echo") as hostCmd:
                 hexAppArgs = hostCmd.read().split()
-            try:
-                # NOTE: fix this code for usage with --opath and make sure it is not specified from a module
-                outIdx = hexAppArgs.index('-o')+1
-                h5Path = hexAppArgs[outIdx]
-                if os.path.isdir(h5Path):
-                    self.h5Path = h5Path
-                    self.hexAppPidRemote = PID
-                    print(f"{fgColors.bBlue}INFO: '{self.hexAppName}' is running.{fgColors.endc}")
-                    print(f"{fgColors.bBlue}INFO: using {self.h5Path} as path to look for HDF5 data.{fgColors.endc}")
-            except IndexError:
-                pass
+            if exportH5:
+                try:
+                    # NOTE: fix this code for usage with --opath and make sure it is not specified from a module
+                    outIdx = hexAppArgs.index('-o')+1
+                    h5Path = hexAppArgs[outIdx]
+                    if os.path.isdir(h5Path):
+                        self.h5Path = h5Path
+                        self.hexAppPidRemote = PID
+                        print(f"{fgColors.bBlue}INFO: '{self.hexAppName}' is running.{fgColors.endc}")
+                        print(f"{fgColors.bBlue}INFO: using {self.h5Path} as path to look for HDF5 data.{fgColors.endc}")
+                except (IndexError, ValueError) as ex:
+                    pass
 
         #sys.exit()
-        if self.h5Path == None:
-            h5Path = input(f"Could not find the HDF5 export path. Enter the path to use:")
-            if os.path.isdir(h5Path):
-                self.h5Path = h5Path
-            else:
-                print(f"{fgColors.red}ERROR: HDF5 path {h5Path} does not exists.{fgColors.endc}")
-                sys.exit()
+        if exportH5 and self.h5Path == None:
+            try:
+                h5Path = input(f"Could not find the HDF5 export path. Enter the path to use:")
+                if os.path.isdir(h5Path):
+                    self.h5Path = h5Path
+                else:
+                    print(f"{fgColors.red}ERROR: HDF5 path {h5Path} does not exists.{fgColors.endc}")
+                    sys.exit()
+            except KeyboardInterrupt:
+                pass
 
     def init(self, archive=False):
+        """
+        call all init functions. For a custom init, call each function manually in your script
+        """
         try:
             self.initNfs()
             self.initDataReader(dataReaderLaunch=True)
@@ -388,6 +422,29 @@ class zynqDataTransfer:
         except KeyboardInterrupt:
             print("\nKeyboard Interrupt: exit program")
             sys.exit()
+
+    def cleanDataPath(self):
+        """
+        Clean all files with hexDataExt from serverNfsDataPath
+        """
+        if self.launchedFromNfsServer and os.path.exists(self.serverNfsDataPath):
+            # Make sure the function is called from the nfs server
+            print(f"{fgColors.bBlue}INFO: running on NFS server, cleaning data path {self.serverNfsDataPath}.{fgColors.endc}")
+            search_pattern = os.path.join(self.serverNfsDataPath, f"*{self.hexDataExt}")
+            files_to_delete = glob.glob(search_pattern)
+            nDeletedFiles = 0
+            for file_path in files_to_delete:
+                try:
+                    print("|", end="")
+                    if nDeletedFiles > 50:
+                        print("\r", end="")
+                    os.remove(file_path)
+                    #print(f"Deleted: {file_path}")
+
+                    nDeletedFiles += 1
+                except OSError as e:
+                    print(f"Error deleting {file_path}: {e}")
+            print(f"\nDeleted {nDeletedFiles} files")
 
 
 if __name__ == "__main__":

@@ -149,9 +149,9 @@ class initCtlPdcFromClient():
             pack.SPD = SPD
 
         # sending settings to Controller
-        self.client.runPrint(f"ctlCfg -a SCS{bankName} -r 0x{pack.SCS:04x} -g")
-        self.client.runPrint(f"ctlCfg -a SCD{bankName} -r 0x{pack.SCD:04x} -g")
-        self.client.runPrint(f"ctlCfg -a SPD{bankName} -r 0x{pack.SPD:04x} -g")
+        self.client.runPrint(f"ctlCfg -a SCS{bankName} -r 0x{pack.SCS:04X} -g")
+        self.client.runPrint(f"ctlCfg -a SCD{bankName} -r 0x{pack.SCD:04X} -g")
+        self.client.runPrint(f"ctlCfg -a SPD{bankName} -r 0x{pack.SPD:04X} -g")
 
     def setDelay(self, signal, delay):
         """
@@ -187,7 +187,7 @@ class initCtlPdcFromClient():
             if nCfgRtnEn != self.nPdcMax:
                 print(f"{fgColors.red}ERROR: number of CFG_RTN_EN lines is different than expected, contact the system designer for a fix.{fgColors.endc}")
                 sys.exit()
-            self.client.runPrint(f"rtnEn -e 0x{self.pdcEnUser:04x} -s")
+            self.client.runPrint(f"rtnEn -e 0x{self.pdcEnUser:04X} -s")
             cfgRtnEnSet = self.client.runReturnSplitInt(f"rtnEn -s", printCmd=False)
             if self.pdcEnUser != cfgRtnEnSet:
                 # setting is not as expected
@@ -207,16 +207,16 @@ class initCtlPdcFromClient():
 
     def preparePDC(self):
         sectionPrint("setup the PDCs to use")
-        self.client.runPrint(f"ctlCfg -a PDC0 -r 0x{self.pdcEnUser&0xFFFF:04x} -g")        # enable PDC
-        self.client.runPrint(f"ctlCfg -a PDC1 -r 0x{(self.pdcEnUser>>16)&0xFFFF:04x} -g")  # enable PDC
-        self.client.runPrint(f"ctlCfg -a CFG0 -r 0x{self.pdcEnUser&0xFFFF:04x} -g")        # enable PDC configuration
-        self.client.runPrint(f"ctlCfg -a CFG1 -r 0x{(self.pdcEnUser>>16)&0xFFFF:04x} -g")  # enable PDC configuration
-        self.client.runPrint( "ctlCfg -a PRST -r 0x0000 -g")                               # reset all PDCs
+        self.client.runPrint(f"ctlCfg -a PDC0 -r 0x{self.pdcEnUser&0xFFFF:04X} -g")        # enable PDC
+        self.client.runPrint(f"ctlCfg -a PDC1 -r 0x{(self.pdcEnUser>>16)&0xFFFF:04X} -g")  # enable PDC
+        self.client.runPrint(f"ctlCfg -a CFG0 -r 0x{self.pdcEnUser&0xFFFF:04X} -g")        # enable PDC configuration
+        self.client.runPrint(f"ctlCfg -a CFG1 -r 0x{(self.pdcEnUser>>16)&0xFFFF:04X} -g")  # enable PDC configuration
+        self.client.runPrint( "ctlCfg -a PRST -r 0x0000 g")                                # reset all PDCs
 
         # remove reset from PDCs
         if self.nPdcMax == 8:
             # 2x2 head setup, 1 reset per PDC
-            self.client.runPrint(f"ctlCfg -a PRST -r 0x{self.pdcEnUser:04x} -g")
+            self.client.runPrint(f"ctlCfg -a PRST -r 0x{self.pdcEnUser:04X} -g")
         elif self.nPdcMax == 32:
             # 8x8 head setup, # reset for all
             self.client.runPrint(f"ctlCfg -a PRST -r 0x1 -g")
@@ -249,7 +249,7 @@ class initCtlPdcFromClient():
             if reg not in allowed_keys:
                 print(f"{fgColors.bYellow} Cannot configure register {reg} for FSM {fgColors.endc}")
                 continue
-            cmd += f"ctlCfg -a {reg} -r 0x{value:04x} -g ; "
+            cmd += f"ctlCfg -a {reg} -r 0x{value:04X} -g ; "
         self.client.runPrint(cmd)
 
     def startFSM(self):

@@ -72,7 +72,24 @@ test_start_time = time.time()
 tp = None
 
 # time to wait for each setting
-measTime = dataConfig_in['measTime']
+#measTime = dataConfig_in['measTime']
+measTime = float(os.environ.get("MEAS_TIME", default=0.2)) # second
+
+# NOTE: user can set hold, recharge and flag time using the following environment variables:
+#       HOLD_TIME_NS, RECH_TIME_NS, FLAG_TIME_NS
+
+# NOTE: set environment variable SPAD_BIAS_V to store it in data file name
+spadBiasStr=""
+if os.environ.get("SPAD_BIAS_V") is not None:
+    spadBias = os.environ['SPAD_BIAS_V']
+    if '.' in spadBias:
+        spadBiasStr = "_" + spadBias.replace('.', "V")
+    elif ',' in spadBias:
+        spadBiasStr = "_" + spadBias.replace(',', "V")
+    else:
+        spadBiasStr = "_" + spadBias + "V"
+    print(f"SPAD bias voltage set to {spadBias} V")
+
 
 # -----------------------------------------------
 # --- open a connection with the ZCU102 board
@@ -86,13 +103,22 @@ client = sshClientHelper.sshClientFromCfg(hostCfgName="zcudev")
 # -----------------------------------------------
 sectionPrint("prepare Zynq platform")
 zynq = zynqDataTransfer(sshClientZynq=client)
+zynq.hexAppOutPathDefault = os.path.join(HDF5_DATA_DIR, os.path.splitext(scriptName)[0])
 zynq.init()
 
 # -----------------------------------------------
 # --- prepare controller for acquisition
 # -----------------------------------------------
-icp = initCtlPdcFromClient(client=client, sysClkPrd=10e-9, pdcEn=pdcConfig_in['pdcAcq'])
-
+#icp = initCtlPdcFromClient(client=client, sysClkPrd=10e-9, pdcEn=pdcConfig_in['pdcAcq'])
+# NOTE: select the PDC to use:
+#       pdcEn=0x1 -> PDC0
+#       pdcEn=0x2 -> PDC1
+#       pdcEn=0x4 -> PDC2
+#       pdcEn=0x8 -> PDC3
+#       pdcEn=0xF -> PDC0, PDC1, PDC2, PDC3
+# NOTE: set environment variable PDC_EN tp set which PDCs to use
+pdcEn = int(os.environ.get("PDC_EN", default=0xF), 0)
+icp = initCtlPdcFromClient(client=client, sysClkPrd=10e-9, pdcEn=pdcEn)
 
 # -----------------------------------------------
 # --- set system clock period
@@ -135,8 +161,7 @@ icp.preparePDC()
 # --- 4096 for a complete 3D SPAD array
 # --- 64 for the embedded 2D CMOS SPADs
 # -----------------------------------------------
-icp.nSpad = 64
-
+icp.nSpad = int(os.environ.get("N_SPAD", default=64))
 
 # --------------------------
 # --- configure the PDCs ---
@@ -162,12 +187,16 @@ PDC_SETTING.PIXL = PIXL
 
 # === TIME REGISTER ===
 print("\n=== TIME REGISTER ===")
-vals=client.runPrint(f"pdcTime --hold {pdcConfig_in['registers']['hold_time']} --rech {pdcConfig_in['registers']['recharge_time']} --flag {pdcConfig_in['registers']['flag_time']} -g", returnLines=True)
+#vals=client.runPrint(f"pdcTime --hold {pdcConfig_in['registers']['hold_time']} --rech {pdcConfig_in['registers']['recharge_time']} --flag {pdcConfig_in['registers']['flag_time']} -g", returnLines=True)
+HOLD_TIME = float(os.environ.get("HOLD_TIME_NS", default=150.0))
+RECH_TIME = float(os.environ.get("RECH_TIME_NS", default=10.0))
+FLAG_TIME = float(os.environ.get("FLAG_TIME_NS", default=10.0))
+client.runPrint(f"pdcTime --hold {HOLD_TIME} --rech {RECH_TIME} --flag {FLAG_TIME} -g")
 PDC_SETTING.TIME = client.runReturnSplitInt('pdcTime -g')
 #set output yaml values to real values from registers 
-config_out['pdcConfig']['registers']['hold_time']=float(vals[2].split(" ")[-2][1:])
-config_out['pdcConfig']['registers']['recharge_time']=float(vals[3].split(" ")[-2][1:])
-config_out['pdcConfig']['registers']['flag_time']=float(vals[4].split(" ")[-2][1:])
+#config_out['pdcConfig']['registers']['hold_time']=float(vals[2].split(" ")[-2][1:])
+#config_out['pdcConfig']['registers']['recharge_time']=float(vals[3].split(" ")[-2][1:])
+#config_out['pdcConfig']['registers']['flag_time']=float(vals[4].split(" ")[-2][1:])
 
 # === ANLG REGISTER ===
 print("\n=== ANLG REGISTER ===")
@@ -262,7 +291,8 @@ elif method == ZppModuleSetMethod.registers:
 # ---------------------------------------
 try:
     print(f"{fgColors.bYellow}Apply HV here{fgColors.endc}")
-    input("Press [enter] key to continue")
+    if os.environ.get("BATCH_MODE") is None:
+        input("Press [enter] key to continue")
 except KeyboardInterrupt:
     print("\nKeyboard Interrupt: exit program")
     sys.exit()
@@ -276,7 +306,8 @@ client.run(f"ctlCfg -a FSMM -r 0x0101 -g"); # triggered by a COMMAND
 # --- Class to generate the display of the results
 # --------------------------------------------------
 class tcrPlotter:
-    def __init__(self, figName, nPdcMax, nSpad, doSavePlot=False, dataPath="default", saveFinalPlot=False):
+    def __init__(self, figName, nPdcMax, nSpad, doSavePlot=False, doSaveGif=False, dataPath="default", saveFinalPlot=False):
+
         """
         create an empty object with no data, but with figure properly formatted
         """
@@ -310,12 +341,15 @@ class tcrPlotter:
         self.axTcr = 0
         self.axPop = 1
 
-        self.doSavePlot=doSavePlot
+        self.dataFileName = ""
+        self.doSavePlot = doSavePlot
+        self.doSaveGif = doSaveGif
         self.saveFinalPlot=saveFinalPlot
+
         self.plotIdx = 0
         self.fig = None
         self.dateStrPlot = datetime.datetime.now().strftime("%Y%m%d_%Hh%Mm%S")
-        self.name = "_"+dataConfig_in['name'] if len(dataConfig_in['name'])>0 else ""
+        self.name = "_"+dataConfig_in['name'] if len(dataConfig_in['name'])>0 else "" #AS - likely unnecessary now
         self.saveTime = None
 
         # path to save CSV data
@@ -326,10 +360,16 @@ class tcrPlotter:
             self.dataPath = os.path.join(USER_DATA_DIR, 'TCR')
         # add script name to path
         self.dataPath = Path(os.path.join(self.dataPath, os.path.splitext(scriptName)[0]))
+
         # path to save plots 
-        self.plotPath = Path(os.path.join(self.dataPath, 'FIG')) if self.saveFinalPlot else Path(os.path.join(self.dataPath, 'FIG', self.dateStrPlot)) 
+        #self.plotPath = Path(os.path.join(self.dataPath, 'FIG')) if self.saveFinalPlot else Path(os.path.join(self.dataPath, 'FIG', self.dateStrPlot)) 
         # path to save yaml 
         self.yamlPath = Path(os.path.join(self.dataPath, 'YAML'))  
+
+        # path to save plot
+        self.plotPath = Path(os.path.join(self.dataPath, 'PNG'))
+        # add a sub folder for all the images of the same measure
+        self.plotGifPath = Path(os.path.join(self.plotPath, self.dateStrPlot))
 
         # init plot
         self.initPlot()
@@ -477,6 +517,9 @@ class tcrPlotter:
         self.updateLegend()
         self.pausePlot(pauseTime=0.001)
         self.savePlot(iPdc=iPdc, final=False)
+        if self.doSaveGif:
+            # save a picture at each update to generate a gif
+            self.savePlot(iPdc=iPdc, doSaveGif=True)
         self.checkExit()
 
 
@@ -596,10 +639,18 @@ class tcrPlotter:
         return registerList
 
 
+    def getFileName(self):
+        if self.dataFileName == "":
+            dateStr=datetime.datetime.now().strftime("%Y%m%d_%Hh%Mm%S")
+            self.dataFileName = f"{dateStr}_TCR_{int(measTime*1000):d}ms{spadBiasStr}"
+        return self.dataFileName
+
+
     def saveData(self):
         """
         save data to a CSV file
         """
+
         dateStr=datetime.datetime.now().strftime("%Y%m%d_%Hh%Mm%S")
         if self.saveTime == None:
             self.saveTime = dateStr
@@ -609,9 +660,7 @@ class tcrPlotter:
             # per PDC data
             if self.pdcValid[iPdc]:
                 # only if data is valid
-                if pdcStr != "":
-                    pdcStr+='_'
-                pdcStr+=f"PDC{iPdc}"
+                pdcStr+=f"_PDC{iPdc}"
 
                 dfNew = pd.DataFrame(data=self.spadIdx, columns=[f"SPAD_idx{iPdc}"])
                 df = pd.concat([df, dfNew], axis=1)
@@ -624,13 +673,14 @@ class tcrPlotter:
 
         if df.size > 0:
             # if there are data to export
-            filename = f"{dateStr}_TCR_{pdcStr}_{int(measTime*1000):d}ms{self.name}.csv"
+            #filename = f"{dateStr}_TCR_{pdcStr}_{int(measTime*1000):d}ms{self.name}.csv"
+            filename = f"{self.getFileName()}{pdcStr}.csv"
             self.dataPath.mkdir(parents=True, exist_ok=True)
             datafile = os.path.join(self.dataPath, filename)
             print(f"{fgColors.green}Saving data to file {datafile}{fgColors.endc}")
             df.to_csv(datafile, sep=';', index=False, float_format="%.3E")
 
-    def savePlot(self, iPdc=None, final:bool=False):
+    def savePlot(self, iPdc=None, doSaveGif=False, final:bool=False):
         """
         save plot to a png file
         """
@@ -643,6 +693,21 @@ class tcrPlotter:
                 self.plotPath.mkdir(parents=True, exist_ok=True)
                 datafile = os.path.join(self.plotPath, filename)
                 print(f"{fgColors.green}Saving plot to file {datafile}{fgColors.endc}")
+
+            if iPdc == None:
+                pdcStr = ""
+                for iPdc in range(0, self.nPdcMax):
+                    if self.pdcValid[iPdc]:
+                        pdcStr+=f"_PDC{iPdc}"
+            else:
+                pdcStr=f"_PDC{iPdc}"
+            filename = f"{self.getFileName()}{pdcStr}_{self.plotIdx:06d}.png"
+            self.plotPath.mkdir(parents=True, exist_ok=True)
+            if doSaveGif:
+                datafile = os.path.join(self.plotPathGif, filename)
+            else:
+                datafile = os.path.join(self.plotPath, filename)
+            print(f"saving plot to file {datafile}")
                 self.fig.savefig(datafile)
                 self.plotIdx += 1
 
@@ -847,7 +912,7 @@ try:
     tp = tcrPlotter(figName="TCR PLOTTER",
                     nPdcMax=nPdcTest,
                     nSpad=icp.nSpad,
-                    doSavePlot=False,
+                    doSavePlot=os.environ.get("SAVE_PLOT", default=False),
                     saveFinalPlot=dataConfig_in['savePlot'])
 
     # ---------------------------------------
@@ -867,6 +932,9 @@ try:
         tp.updatePlot()
     else:
         test_all_pixels(tp=tp, update=True, numPdc=nPdcTest)
+
+    # save plot if enabled by user
+    tp.savePlot()
 
     # 2- estimate the TCR of the array with all pixels enabled
     sectionPrint("Estimate the TCR of the array (all pixels)")
@@ -889,8 +957,8 @@ try:
         medianToMin=4
 
     # store all tested threshold methods to later select the one to use
-    #thresholdList = [[0]*len(ScreamerMethod) for _ in range(0, nPdcTest)]
-    thresholdList = [[0]*nPdcTest for _ in range(0, len(ScreamerMethod))]
+    #thresholdList = [[0]*nPdcTest for _ in range(0, len(ScreamerMethod))]
+    thresholdList = np.zeros((len(ScreamerMethod), icp.nPdcMax))
 
     for iPdc in range(0, nPdcTest):
         if not tp.pdcValid[iPdc]:
@@ -971,6 +1039,9 @@ try:
     tp.updateLegend()
     tp.pausePlot(pauseTime=0.001)
 
+    # export data
+    tp.saveData()
+
     # 5- enable the selected SPADs
     sectionPrint("Enable the selected SPADs")
     for iPdc in range(0, nPdcTest):
@@ -983,29 +1054,29 @@ try:
             client.runPrint(pdcSpadCmd)
         else:
             # for more than 64 SPADs (here the 3D SPADs), specify each register to enable
-            registerList = tp.getSpadRegister(iPdc)
             pdcSpadDisCmd = f"pdcPix --dis --spdc {iPdc} --mode NONE"
             client.runPrint(pdcSpadDisCmd)
+            # NOTE: This part of the script has been commented
+            #       to prevent all non screamer SPADs to run at the end of the script.
+            #       Use another script to enable all non screamer SPADs manually.
+            """
+            registerList = tp.getSpadRegister(iPdc)
             for addr, register in enumerate(registerList):
                 if register != 0:
                     # skippeing empty registers since previously disabled all the SPADs
                     pdcSpadCmd = f"pdcPix --addr {addr} --reg 0x{register:04x} --spdc {iPdc} --mode NONE"
                     client.runPrint(pdcSpadCmd)
-
-    # export data and plot, if applicable
-    tp.saveData()   
-    if dataConfig_in['savePlot']:
-        tp.savePlot(final=True)
-    if dataConfig_in['saveYaml']:
-        tp.saveYaml()
-    
+            """
+    # make sure the single PDC configuration bit is reset
+    client.runPrint(f"ctlCfg -a CFGS -r 0x0000 -g") # disable single configuration
 
     # total execution time
     test_stop_time = time.time()
     print(f"{fgColors.bBlue}Test took {test_stop_time-test_start_time:.3f} seconds{fgColors.endc}")
     print(f"{fgColors.bBlue}Test completed, to exit, close figure{fgColors.endc}")
-    plt.show(block=True)
-    print("\nFigure closed... exit program")
+    if os.environ.get("BATCH_MODE") is None:
+        plt.show(block=True)
+        print("\nFigure closed... exit program")
 
 except (KeyboardInterrupt, SystemExit) as ex:
     if "tp" in locals():

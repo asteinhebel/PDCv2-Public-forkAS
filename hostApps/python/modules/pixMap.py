@@ -1,10 +1,11 @@
 import numpy as np
 
-# ASIC PIXEL CONSTANTS
-TOP_NX_REG=16   # number of registers along x axis (pad ring side)
-TOP_NY_REG=16   # number of registers along y axis (from pad ring to SPAD)
+# PDC PIXEL CONSTANTS
+TOP_NX_REG=16   # number of registers along x axis (CMOS pads axis)
+TOP_NY_REG=16   # number of registers along y axis
 TOP_N_REG=TOP_NX_REG*TOP_NY_REG
 
+# a register is 4x4 pixels
 REG_NX_PIX=4    # number of pixels along x axis in a pixel register
 REG_NY_PIX=4    # number of pixels along y axis in a pixel register
 REG_N_PIX=REG_NX_PIX*REG_NY_PIX
@@ -12,6 +13,9 @@ REG_N_PIX=REG_NX_PIX*REG_NY_PIX
 TOP_NX_PIX = TOP_NX_REG*REG_NX_PIX
 TOP_NY_PIX = TOP_NY_REG*REG_NY_PIX
 TOP_N_PIX = TOP_NX_PIX*TOP_NY_PIX
+
+# number of pixel enable register
+N_PDC_REG = int(TOP_N_PIX/REG_N_PIX)
 
 # of the different implementation, this one is the faster
 def vect2xymap(value_unmapped):
