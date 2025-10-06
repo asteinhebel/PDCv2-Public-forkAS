@@ -765,7 +765,7 @@ def parse_files(dp: dsumPlotter):
 # --- Script main execution
 # ---------------------------------------
 # Switch to disable running parsing in a separate thread from gui
-run_thread = True
+run_thread = False
 try:
     dp = dsumPlotter(figName="DSUM PLOTTER",
                      nPdcMax=N_PDC_MAX,
