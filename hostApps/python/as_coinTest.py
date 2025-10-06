@@ -533,6 +533,7 @@ if instConfig_in['runWithLED']:
     print('opening resource: ' + resource_scope)
     inst_scope = rm.open_resource(resource_scope, write_termination = '\n',read_termination='\n')
     print(f'Scope Device: {inst_scope.query("*IDN?")}')
+    inst_scope.write('WGENerator1:ENABle OFF')
 
     #synchronize time
     timeNow = time.strftime("%H,%M,%S", time.localtime())
@@ -582,10 +583,12 @@ finally:
     for vDown in range(instConfig_in['hvBias'],-1,-1):
         time.sleep(0.2)
         inst_dcps.write(f"APPL {float(vDown)}, 0.1")
+    inst_dcps.close()
 
     print(f"Run over - turn off output")
     inst_dcps.write("APPL 0.0, 0.0")
     inst_dcps.write("OUTP OFF")
+    inst_dcps.close()
 
     client.runPrint("stop")
     sys.exit()
