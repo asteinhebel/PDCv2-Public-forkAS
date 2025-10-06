@@ -29,14 +29,24 @@ pdcConfig:
     #Default 2.0 (getDsumOnCoincidence), 10.0 (getSpadTcrU*)
     flag_time: 2.0
 
-  pattern:
+  pattern: #all
     pdc0: "0xffffffffffffffff"
     pdc1: "0xffffffffffffffff"
     pdc2: "0xffffffffffffffff"
     pdc3: "0xffffffffffffffff"
-  #pattern:
-  #  pdc0: "0xfff4ffe7fffffffd"
+ # pattern: #mean
+ #   pdc0: "0xfff4ffe7fffffffd"
+ #   pdc1: "0xffffffffff77fffd" 
+ #   pdc2: "0xfffefbfbff7bf7ff" 
+ #   pdc3: "0x7bff7ff7fdffffff" 
+  #pattern: #mean 10/30
+  #  pdc0: "0xfff4fff7fffffffd"
   #  pdc1: "0xffffffffff77fffd" 
+  #  pdc2: "0xfffefbffff7bf7ff" 
+  #  pdc3: "0x7bff7ff7fdffffff" 
+  #pattern: #threshold 700
+  #  pdc0: "0xfff4fff7fffffffd"
+  #  pdc1: "0xffffffffef77fffd" 
   #  pdc2: "0xfffefbfbff7bf7ff" 
   #  pdc3: "0x7bff7ff7fdffffff" 
 
@@ -60,10 +70,10 @@ instrumentConfig:
   #oscilloscope settings
   runWithLED: True
   generatorPort: 1
-  pulse_frequency: 10.0 #Hz
-  pulse_amplitude: 0.9 #Vpp
-  pulse_offset: 0.1 #V
-  pulse_dutyCycle: 10 #%
+  pulse_frequency: 1.0 #Hz
+  pulse_amplitude: 1.0 #Vpp
+  pulse_offset: 0.7 #V
+  pulse_dutyCycle: 0.01 #%
 
 
 ###########################################################################
@@ -72,8 +82,8 @@ instrumentConfig:
 #
 ###########################################################################
 dataConfig:
-  name: "test" #addition to the end of the name string, for CSV data file
-  savePlot: 0 #BOOL value: 0=False, 1=True
+  name: "noLed_all" #addition to the end of the name string, for CSV data file
+  savePlot: 1 #BOOL value: 0=False, 1=True
   saveYaml: 0 #BOOL value: 0=False, 1=True
 
   #### SCRIPT SPECIFIC - ignore for scripts not being used####
@@ -92,6 +102,6 @@ dataConfig:
 
   #getDsum
   #Units of seconds. If -1, then no limit on runtime
-  maxRunTime: -1
+  maxRunTime: 30
   #If -1, then no limit on number of events
   maxEvents: -1
