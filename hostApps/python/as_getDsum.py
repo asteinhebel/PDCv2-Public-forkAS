@@ -78,6 +78,7 @@ except NameError:
 with open('config_all.yaml','r') as f:
     config_in = yaml.safe_load(f)
     pdcConfig_in = config_in['pdcConfig']
+    instConfig_in = config_in['instrumentConfig']
     dataConfig_in = config_in['dataConfig']
     config_out = config_in.copy()
 
