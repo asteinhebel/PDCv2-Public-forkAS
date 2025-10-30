@@ -13,8 +13,12 @@
 #----------------------------------------------------------------------------------
 import numpy as np
 from enum import IntEnum
+import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
 
 import modules.pixMap as pixMap
+
+
 
 # class to define the different methods to find which pixels to enable
 class ThreshMethod(IntEnum):
@@ -43,6 +47,9 @@ class EnabledPixelAnalysis():
     thPct : float
     thMedFactor : float
     thresh : float
+
+    # pixels to enable
+    pixToEnable : np.ndarray
 
     # number of pixels to enable
     numPixToEnable : int = 0
@@ -80,12 +87,16 @@ def convertPixArrayToReg(
                             thConst: float = -1.0,     # only used with ThreshMethod.constant
                             thPct: float = -1.0,       # only used with ThreshMethod.percent
                             thMedFactor: float = -1.0, # only used with ThreshMethod.medianFactor
+                            pixEnMask = None,          # mask to apply to the pixel enable
+                            plot = False,              # show a plot of the pixels to enable
                             log = False,               # print the registers when set to True
                             returnAnalysis = False     # return the analysis class
                         ) -> np.array:
     # validate input parameters
-    if isinstance(pixArray, np.ndarray):
-        pixArray = pixArray.flatten()
+    if (isinstance(pixArray, np.ndarray) and
+            np.shape(pixArray) == (pixMap.TOP_NX_PIX, pixMap.TOP_NY_PIX)):
+        # 2D array
+        pixArray = pixMap.xymap2vect(pixArray)
     if len(pixArray) != pixMap.TOP_N_PIX:
         raise ValueError("pixArray must contain exactly 4096 elements")
 
@@ -133,9 +144,29 @@ def convertPixArrayToReg(
         pixToEnable = pixArray >= pixAnalysis.thresh
     elif thOp == ThreshOp.gt:
         pixToEnable = pixArray > pixAnalysis.thresh
+    # apply mask
+    if not pixEnMask is None:
+        if (isinstance(pixEnMask, np.ndarray) and
+                np.shape(pixEnMask) == (pixMap.TOP_NX_PIX, pixMap.TOP_NY_PIX)):
+            # 2D array
+            pixEnMask = pixMap.xymap2vect(pixEnMask)
+        pixToEnable = np.logical_and(pixToEnable, pixEnMask)
+
     pixToEnable = np.array(pixToEnable)
+    pixAnalysis.pixToEnable = pixToEnable
     pixAnalysis.numPixToEnable = (pixToEnable == True).sum()
     print(f"Enabling {pixAnalysis.numPixToEnable} pixels ({100.0*pixAnalysis.pctEnabled:>3.2f} %)")
+
+    if plot:
+        # Create a custom colormap from green to red
+        # You can define the colors at specific points along the colormap
+        colors = [(0, 'black'), (1, 'white')]
+        cmap = mcolors.LinearSegmentedColormap.from_list("BlackWhite", colors)
+        plt.ion()
+        plt.figure()
+        plt.imshow(pixMap.vect2xymap(pixToEnable).T, cmap=cmap, origin='lower', aspect="equal")
+        plt.show()
+
 
     # calculate the total and average value per pixel
     pixAnalysis.totalAllPix = 0

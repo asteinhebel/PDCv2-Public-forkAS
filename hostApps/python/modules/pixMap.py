@@ -128,6 +128,24 @@ def idx_map(x, y):
     idx_y = (y<<2) + 15*((y & 0x0000003C)<<2)
     return idx_x + idx_y;
 
+def xymap2vect(value_mapped):
+    """
+    Converts an array representing the ASIC with 64 rows (y) and 64 columns (x) into a vector with pixel index from 0 to 4095
+    """
+    array_shape = np.shape(value_mapped)
+    if (array_shape == (TOP_NX_PIX, TOP_NY_PIX)):
+        vector=np.zeros(TOP_N_PIX)
+
+        for yPix in range(0, TOP_NY_PIX):
+            for xPix in range(0, TOP_NX_PIX):
+                vector[idx_map(xPix, yPix)] = value_mapped[xPix, yPix]
+
+        return vector
+    else:
+        print("Warning: size must be 64 x 64, found {array_shape} items")
+        return value_mapped
+
+
 def vect2regs(vect, log=False):
     """
     Converts a vector of pixels to the pixel enable registers of the PDC
@@ -140,6 +158,7 @@ def vect2regs(vect, log=False):
                 pdcPixReg[iReg] |= (0x1 << iPix)
         if log:
             print(f"{iReg:>3d}:0x{pdcPixReg[iReg]:04x}")
+    return pdcPixReg
 
 
 def xy2regs(xyArray, log=False):

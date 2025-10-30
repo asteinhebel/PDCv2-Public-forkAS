@@ -81,7 +81,7 @@ zynq.init()
 #       pdcEn=0x8 -> PDC3
 #       pdcEn=0xF -> PDC0, PDC1, PDC2, PDC3
 # NOTE: set environment variable PDC_EN tp set which PDCs to use
-pdcEn = int(os.environ.get("PDC_EN", default=0xF), 0)
+pdcEn = int(os.environ.get("PDC_EN", default="0xF"), 0)
 icp = initCtlPdcFromClient(client=client, sysClkPrd=10e-9, pdcEn=pdcEn)
 
 
@@ -152,7 +152,7 @@ client.runPrint("ctlCmd -c MODE_CFG")  # set PDCs to configuration mode
 # === PIXL REGISTER ===
 print("\n=== PIXL REGISTER ===")
 # active quenching of the front-end
-ACTIVE_QC_EN = 0; # 0=disabled/passive, 1=enabled/active
+ACTIVE_QC_EN = 1; # 0=disabled/passive, 1=enabled/active
 # trigger using QC front-end (FE) or digital only (DGTL)
 TRG_DGTL_FEN = 0; # 0=FE, 1=DGTL
 # enable flag output of the pixel
