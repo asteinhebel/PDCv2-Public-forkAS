@@ -75,6 +75,15 @@ if os.environ.get("SPAD_BIAS_V") is not None:
         spadBiasStr = "_" + spadBias + "V"
     print(f"SPAD bias voltage set to {spadBias} V")
 
+#NOTE: set environment variable HEAD_ID to store it in data file name
+#      only set the integer value (e.g. 48)
+headStr = ""
+if os.environ.get("HEAD_ID") is not None:
+    headId = os.environ['HEAD_ID']
+    headStr = f"H{headId}_"
+    print(f"Using head {headId}")
+
+
 # -----------------------------------------------
 # --- open a connection with the ZCU102 board
 # -----------------------------------------------
@@ -620,7 +629,7 @@ class tcrPlotter:
     def getFileName(self):
         if self.dataFileName == "":
             dateStr=datetime.datetime.now().strftime("%Y%m%d_%Hh%Mm%S")
-            self.dataFileName = f"{dateStr}_TCR_{int(measTime*1000):d}ms{spadBiasStr}"
+            self.dataFileName = f"{dateStr}_TCR_{headStr}{int(measTime*1000):d}ms{spadBiasStr}"
         return self.dataFileName
 
 
