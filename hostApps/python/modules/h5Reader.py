@@ -266,6 +266,26 @@ class h5Reader:
 
         return self.hfFile
 
+    def tryOpen(self, nRetry=0):
+        try:
+            self.h5 = h5py.File(self.hfFile, 'r+')
+        except BlockingIOError as ex:
+            """
+            [Errno 11] Unable to open file
+            (unable to lock file, errno = 11,
+            error message = 'Resource temporarily
+            unavailable')
+            """
+            if nRetry < 10:
+                # nRetry is increased on each recursion
+                dbgPrint(f"File busy")
+                timeSleep(0.001)
+                self.tryOpen(nRetry=nRetry+1)
+            else:
+                # max number of retries reached
+                # consider reading the file as failed
+                dbgPrint(f"File still busy")
+                self.h5 = None # make sure it is still set to None
 
     def h5Open(self):
         """
@@ -273,22 +293,7 @@ class h5Reader:
         """
         if self.h5 == None:
             dbgPrint(f"Opening file {self.hfFile}")
-            try:
-                self.h5 = h5py.File(self.hfFile, 'r+')
-            except BlockingIOError as ex:
-                """
-                [Errno 11] Unable to open file
-                (unable to lock file, errno = 11,
-                error message = 'Resource temporarily
-                unavailable')
-                """
-                dbgPrint(f"File busy")
-                timeSleep(0.001)
-                try:
-                    self.h5 = h5py.File(self.hfFile, 'r+')
-                except BlockingIOError as ex:
-                    dbgPrint(f"File still busy")
-                    self.h5 = None # make sure it is still set to None
+            self.tryOpen() # try to open file with recursion
         return self.h5 != None
 
     def h5Close(self):
