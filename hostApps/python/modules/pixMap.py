@@ -122,11 +122,33 @@ def vect2xy (value_unmapped):
 
 def idx_map(x, y):
     """
-    Convert a X, Y based pixel index to a pixel index
+    Converts a X, Y based pixel index to a pixel index
     """
     idx_x =  x     +  3*(x  & 0x0000003C)
     idx_y = (y<<2) + 15*((y & 0x0000003C)<<2)
     return idx_x + idx_y;
+
+def xy_map(idx: int):
+    """
+    Converts a pixel index to a  X, Y based pixel index
+
+    Args:
+        idx (int): The 1D pixel index.
+
+    Returns:
+        tuple[int, int]: The (x, y) coordinates.
+    """
+    # Initialize x and y
+    for y in range(YPIX):
+        idx_y = (y << 2) + 15 * ((y & 0x0000003C) << 2)
+        if idx < idx_y:
+            continue
+        for x in range(XPIX):
+            idx_x = x + 3 * (x & 0x0000003C)
+            if idx == idx_x + idx_y:
+                return x, y
+
+    raise ValueError("Invalid index: Could not map to (x, y)")
 
 def xymap2vect(value_mapped):
     """
