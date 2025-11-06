@@ -805,6 +805,8 @@ def test_all_pixels(tp: tcrPlotter, update=False):
         # testing a full array
         rows = range(0, 64)
         cols = range(0, 64)
+        #rows = range(63, -1, -1) # starts from the end
+        #cols = range(63, -1, -1) # starts from the end
         lMethod = LoopingMethod.rows_cols
 
     elif icp.nSpad == 64:
