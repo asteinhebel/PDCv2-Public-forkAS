@@ -144,6 +144,11 @@ def convertPixArrayToReg(
         pixToEnable = pixArray >= pixAnalysis.thresh
     elif thOp == ThreshOp.gt:
         pixToEnable = pixArray > pixAnalysis.thresh
+
+    # NOTE: disable pixels with TCR of 0 (usually defective)
+    pixWithValidTcr = pixArray > 0
+    pixToEnable = np.logical_and(pixToEnable, pixWithValidTcr)
+
     # apply mask
     if not pixEnMask is None:
         if (isinstance(pixEnMask, np.ndarray) and
@@ -181,14 +186,7 @@ def convertPixArrayToReg(
     print(f"                    {100.0*pixAnalysis.pctTotal:>10.1f} %, {100.0*pixAnalysis.pctPerPix:>10.1f} %")
 
     # convert pixToEnable array to PDC pixel registers
-    #pdcPixReg = np.zeros(pixMap.N_PDC_REG, dtype=np.uint16)
-    #for iReg in range(pixMap.N_PDC_REG):
-    #    for iPix in range(pixMap.REG_N_PIX):
-    #        if pixToEnable[pixMap.REG_N_PIX*iReg+iPix]:
-    #            pdcPixReg[iReg] |= (0x1 << iPix)
-    #    if log:
-    #        print(f"{iReg:>3d}:0x{pdcPixReg[iReg]:04x}")
-    pdcPixReg = pixMap.vect2regs(pixToEnable, log=False)
+    pdcPixReg = pixMap.vect2regs(pixToEnable, log=log)
 
     if returnAnalysis:
         return (pdcPixReg, pixAnalysis)
