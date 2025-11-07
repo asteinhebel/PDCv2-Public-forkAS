@@ -146,8 +146,8 @@ zynq.initDataReader(dataReaderLaunch=True)
 # dsum module settings
 CSV_DATA_DIR = os.path.join(USER_DATA_DIR, f"DSUM_CSV_3D_{radSource}")
 DATE_STR = datetime.datetime.now().strftime("%Y%m%d_%Hh%Mm%S")
-DATA_TYPE = "NZ" # "all", "NZ", "dt", "max"
-#DATA_TYPE = "max" # "all", "NZ", "dt", "max"
+# DATA_TYPE: "all", "NZ", "NZKF", "dt", "max"
+DATA_TYPE = "NZ"
 BIN_IDX_MODE = "time" # "continuous", "frame", "time"
 DATA_FILE_NAME = f"{DATE_STR}_{os.path.splitext(scriptName)[0]}_{headStr}{DATA_TYPE}_{BIN_IDX_MODE}{spadBiasStr}.csv"
 dsumCsvFile = os.path.join(CSV_DATA_DIR, DATA_FILE_NAME)
