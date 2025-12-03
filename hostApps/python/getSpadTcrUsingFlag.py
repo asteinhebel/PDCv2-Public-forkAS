@@ -169,7 +169,7 @@ icp.preparePDC()
 # --- 4096 for a complete 3D SPAD array
 # --- 64 for the embedded 2D CMOS SPADs
 # -----------------------------------------------
-icp.nSpad = int(os.environ.get("N_SPAD", default=64))
+icp.nSpad = int(os.environ.get("N_SPAD", default=4096))#64))
 
 # --------------------------
 # --- configure the PDCs ---
@@ -716,8 +716,8 @@ class tcrPlotter:
             else:
                 datafile = os.path.join(self.plotPath, filename)
             print(f"saving plot to file {datafile}")
-                self.fig.savefig(datafile)
-                self.plotIdx += 1
+            self.fig.savefig(datafile)
+            self.plotIdx += 1
 
     def saveYaml(self):
         """
