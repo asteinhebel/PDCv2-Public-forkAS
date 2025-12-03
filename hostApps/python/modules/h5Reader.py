@@ -155,6 +155,7 @@ class h5Reader:
         init of the h5reader class
         """
         # settings for the measurements
+        self.hfFileOpenSuccess = False
         self.h5 = None
         self.deleteAfter = deleteAfter
         self.scripts_path = os.path.dirname(__file__)
@@ -266,6 +267,33 @@ class h5Reader:
 
         return self.hfFile
 
+    def tryOpen(self, nRetry=0):
+        try:
+            self.h5 = h5py.File(self.hfFile, 'r+')
+            self.hfFileOpenSuccess = True
+        except BlockingIOError as ex:
+            """
+            [Errno 11] Unable to open file
+            (unable to lock file, errno = 11,
+            error message = 'Resource temporarily
+            unavailable')
+            """
+            if nRetry < 20:
+                # nRetry is increased on each recursion
+                dbgPrint(f"File busy")
+                if nRetry < 10:
+                    # normal operation
+                    timeSleep(0.001)
+                else:
+                    # slow system with limited resources
+                    timeSleep(0.010)
+                self.tryOpen(nRetry=nRetry+1)
+            else:
+                # max number of retries reached
+                # consider reading the file as failed
+                dbgPrint(f"File still busy")
+                self.h5 = None # make sure it is still set to None
+                self.hfFileOpenSuccess = False
 
     def h5Open(self):
         """
@@ -273,22 +301,7 @@ class h5Reader:
         """
         if self.h5 == None:
             dbgPrint(f"Opening file {self.hfFile}")
-            try:
-                self.h5 = h5py.File(self.hfFile, 'r+')
-            except BlockingIOError as ex:
-                """
-                [Errno 11] Unable to open file
-                (unable to lock file, errno = 11,
-                error message = 'Resource temporarily
-                unavailable')
-                """
-                dbgPrint(f"File busy")
-                timeSleep(0.001)
-                try:
-                    self.h5 = h5py.File(self.hfFile, 'r+')
-                except BlockingIOError as ex:
-                    dbgPrint(f"File still busy")
-                    self.h5 = None # make sure it is still set to None
+            self.tryOpen() # try to open file with recursion
         return self.h5 != None
 
     def h5Close(self):
@@ -299,7 +312,8 @@ class h5Reader:
             dbgPrint(f"Closing file {self.hfFile}")
             self.h5.close()
             self.h5 = None
-        if self.deleteAfter and os.path.isfile(self.hfFile):
+        if self.deleteAfter and os.path.isfile(self.hfFile) and self.hfFileOpenSuccess:
+            # NOTE: delete only file successfully parsed
             dbgPrint(f"Deleting file {self.hfFile}")
             os.remove(self.hfFile)
             self.hfFile = ""

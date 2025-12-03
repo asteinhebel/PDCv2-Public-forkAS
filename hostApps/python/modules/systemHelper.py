@@ -59,3 +59,17 @@ def get_gitVersion():
     except BaseException as ex:
         return version
 
+class Tee:
+    # class to reproduce the behaviour of tee in linux CLI
+    # to both print into sys.stdout (terminal) and log file
+    def __init__(self, *files):
+        self.files = files
+
+    def write(self, obj):
+        for f in self.files:
+            f.write(obj)
+            f.flush() # Ensure immediate writing
+
+    def flush(self):
+        for f in self.files:
+            f.flush()

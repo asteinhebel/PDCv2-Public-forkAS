@@ -90,6 +90,14 @@ if os.environ.get("SPAD_BIAS_V") is not None:
         spadBiasStr = "_" + spadBias + "V"
     print(f"SPAD bias voltage set to {spadBias} V")
 
+#NOTE: set environment variable HEAD_ID to store it in data file name
+#      only set the integer value (e.g. 48)
+headStr = ""
+if os.environ.get("HEAD_ID") is not None:
+    headId = os.environ['HEAD_ID']
+    headStr = f"H{headId}_"
+    print(f"Using head {headId}")
+
 
 # -----------------------------------------------
 # --- open a connection with the ZCU102 board
@@ -117,7 +125,7 @@ zynq.init()
 #       pdcEn=0x8 -> PDC3
 #       pdcEn=0xF -> PDC0, PDC1, PDC2, PDC3
 # NOTE: set environment variable PDC_EN tp set which PDCs to use
-pdcEn = int(os.environ.get("PDC_EN", default=0xF), 0)
+pdcEn = int(os.environ.get("PDC_EN", default="0xF"), 0)
 icp = initCtlPdcFromClient(client=client, sysClkPrd=10e-9, pdcEn=pdcEn)
 
 # -----------------------------------------------
@@ -173,7 +181,7 @@ client.runPrint("ctlCmd -c MODE_CFG")  # set PDCs to configuration mode
 # === PIXL REGISTER ===
 print("\n=== PIXL REGISTER ===")
 # active quenching of the front-end
-ACTIVE_QC_EN = 0; # 0=disabled/passive, 1=enabled/active
+ACTIVE_QC_EN = 1; # 0=disabled/passive, 1=enabled/active
 # trigger using QC front-end (FE) or digital only (DGTL)
 TRG_DGTL_FEN = 0; # 0=FE, 1=DGTL
 # enable flag output of the pixel
@@ -642,7 +650,7 @@ class tcrPlotter:
     def getFileName(self):
         if self.dataFileName == "":
             dateStr=datetime.datetime.now().strftime("%Y%m%d_%Hh%Mm%S")
-            self.dataFileName = f"{dateStr}_TCR_{int(measTime*1000):d}ms{spadBiasStr}"
+            self.dataFileName = f"{dateStr}_TCR_{headStr}{int(measTime*1000):d}ms{spadBiasStr}"
         return self.dataFileName
 
 
@@ -843,6 +851,8 @@ def test_all_pixels(tp: tcrPlotter, update=False, numPdc=icp.nPdcMax):
         # testing a full array
         rows = range(0, 64)
         cols = range(0, 64)
+        #rows = range(63, -1, -1) # starts from the end
+        #cols = range(63, -1, -1) # starts from the end
         lMethod = LoopingMethod.rows_cols
 
     elif icp.nSpad == 64:

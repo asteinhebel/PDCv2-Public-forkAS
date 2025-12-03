@@ -17,7 +17,7 @@ TOP_N_PIX = TOP_NX_PIX*TOP_NY_PIX
 # number of pixel enable register
 N_PDC_REG = int(TOP_N_PIX/REG_N_PIX)
 
-# of the different implementation, this one is the faster
+# of the different implementation, this one is the fastest
 def vect2xymap(value_unmapped):
     """
     Converts a vector with pixel index from 0 to 4095 into
@@ -97,7 +97,6 @@ def vect2xymap(value_unmapped):
 #        print("Warning: size must be 64 x 64, found %d items" % vect_len)
 #        return value_unmapped
 
-
 XPIX = 64
 YPIX = 64
 def vect2xy (value_unmapped):
@@ -123,8 +122,84 @@ def vect2xy (value_unmapped):
 
 def idx_map(x, y):
     """
-    Convert a X, Y based pixel index to a pixel index
+    Converts a X, Y based pixel index to a pixel index
     """
     idx_x =  x     +  3*(x  & 0x0000003C)
     idx_y = (y<<2) + 15*((y & 0x0000003C)<<2)
     return idx_x + idx_y;
+
+def xy_map(idx: int):
+    """
+    Converts a pixel index to a  X, Y based pixel index
+
+    Args:
+        idx (int): The 1D pixel index.
+
+    Returns:
+        tuple[int, int]: The (x, y) coordinates.
+    """
+    # Initialize x and y
+    for y in range(YPIX):
+        idx_y = (y << 2) + 15 * ((y & 0x0000003C) << 2)
+        if idx < idx_y:
+            continue
+        for x in range(XPIX):
+            idx_x = x + 3 * (x & 0x0000003C)
+            if idx == idx_x + idx_y:
+                return x, y
+
+    raise ValueError("Invalid index: Could not map to (x, y)")
+
+def xymap2vect(value_mapped):
+    """
+    Converts an array representing the ASIC with 64 rows (y) and 64 columns (x) into a vector with pixel index from 0 to 4095
+    """
+    array_shape = np.shape(value_mapped)
+    if (array_shape == (TOP_NX_PIX, TOP_NY_PIX)):
+        vector=np.zeros(TOP_N_PIX)
+
+        for yPix in range(0, TOP_NY_PIX):
+            for xPix in range(0, TOP_NX_PIX):
+                vector[idx_map(xPix, yPix)] = value_mapped[xPix, yPix]
+
+        return vector
+    else:
+        print("Warning: size must be 64 x 64, found {array_shape} items")
+        return value_mapped
+
+
+def vect2regs(vect, log=False):
+    """
+    Converts a vector of pixels to the pixel enable registers of the PDC
+    Values in vect must be 0/1 or False/True
+    """
+    pdcPixReg = np.zeros(N_PDC_REG, dtype=np.uint16)
+    for iReg in range(N_PDC_REG):
+        for iPix in range(REG_N_PIX):
+            if vect[REG_N_PIX*iReg+iPix]:
+                pdcPixReg[iReg] |= (0x1 << iPix)
+        if log:
+            print(f"{iReg:>3d}:0x{pdcPixReg[iReg]:04x}")
+    return pdcPixReg
+
+
+def xy2regs(xyArray, log=False):
+    """
+    Converts a X, Y based pixel array to the pixel enable registers of the PDC
+    Values in xyArray must be 0/1 or False/True
+    """
+    pdcPixReg = np.zeros(N_PDC_REG, dtype=np.uint16)
+    for yReg in range(TOP_NY_REG):
+        for xReg in range(TOP_NX_REG):
+            iReg = TOP_NX_REG*yReg + xReg
+            for yPix in range(REG_NY_PIX):
+                for xPix in range(REG_NX_PIX):
+                    iPix = yPix*REG_NX_PIX + xPix
+                    row = yReg*REG_NY_PIX+yPix
+                    col = xReg*REG_NX_PIX+xPix
+                    if xyArray[col, row]:
+                        pdcPixReg[iReg] |= (0x1 << iPix)
+            if log:
+                print(f"{iReg:>3d}:0x{pdcPixReg[iReg]:04x}")
+    return pdcPixReg
+
