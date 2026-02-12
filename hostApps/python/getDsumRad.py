@@ -144,6 +144,7 @@ zynq.cleanDataPath()
 zynq.initDataReader(dataReaderLaunch=True)
 
 # dsum module settings
+#AS - must create this dir if doesn't exist
 CSV_DATA_DIR = os.path.join(USER_DATA_DIR, f"DSUM_CSV_3D_{radSource}")
 DATE_STR = datetime.datetime.now().strftime("%Y%m%d_%Hh%Mm%S")
 # DATA_TYPE: "all", "NZ", "NZKF", "dt", "max"
@@ -457,7 +458,6 @@ PDC_SETTING.PIXL = PIXL
 
 # === TIME REGISTER ===
 print("\n=== TIME REGISTER ===")
-#HOLD_TIME = float(os.environ.get("HOLD_TIME_NS", default=250.0))
 HOLD_TIME = float(os.environ.get("HOLD_TIME_NS", default=250.0))
 RECH_TIME = float(os.environ.get("RECH_TIME_NS", default=10.0))
 FLAG_TIME = float(os.environ.get("FLAG_TIME_NS", default=2.0))
@@ -666,7 +666,7 @@ for iPdc in range(icp.nPdcMax):
 sys.stdout = defaultStdout
 pixelStatsFile.close()
 
-# done with all the PDCs, make sur to return the configuration to all PDCs
+# done with all the PDCs, make sure to return the configuration to all PDCs
 client.runPrint(f"ctlCfg -a CFGS -r 0x0000 -g") # disable single configuration
 
 
@@ -713,7 +713,7 @@ client.runPrint(f"ctlCfg -a COIW -r 0x{COIN_WLEN&0x03FF:04x} -g")
 
 # set the coincidence thresholds
 NCH_TH = 1      # number of PDC channel for a coincidence
-NUM_BANK = 1    # number of hits per PDC
+NUM_BANK = 4096    # number of hits per PDC
 cothReg = ((NCH_TH&0x7F)<<8) | (NUM_BANK&0x7)
 client.runPrint(f"ctlCfg -a COTH -r 0x{cothReg:04x} -g")
 
