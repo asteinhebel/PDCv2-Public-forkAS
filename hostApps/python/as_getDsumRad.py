@@ -82,9 +82,11 @@ if os.environ.get("HEAD_ID") is not None:
 #radSource = "Ge68"
 #radSource = "Am241"
 #radSource = "xray"
-radSource = "background"
+#radSource = "background"
 if os.environ.get("RAD_SOURCE") is not None:
     radSource = os.environ['RAD_SOURCE']
+else:
+    radSource = ""
 print(f"Radiation source: {radSource}")
 
 
@@ -144,7 +146,6 @@ zynq.cleanDataPath()
 zynq.initDataReader(dataReaderLaunch=True)
 
 # dsum module settings
-#AS - must create this dir if doesn't exist
 CSV_DATA_DIR = os.path.join(USER_DATA_DIR, f"DSUM_CSV_3D_{radSource}")
 DATE_STR = datetime.datetime.now().strftime("%Y%m%d_%Hh%Mm%S")
 # DATA_TYPE: "all", "NZ", "NZKF", "dt", "max"
@@ -232,7 +233,17 @@ SCDA = 0x0001
 # configure PDC_DATA_A
     # 0x0100 = DSUM
     # 0x00F7 = ZPP
-SPDA = 0x0100
+
+if os.environ.get("DATA_TYPE") is None:
+    print(f"{fgColors.bYellow}'DATA_TYPE' not recognized - must be DSUM or ZPP.{fgColors.endc}")
+    sys.exit()
+elif os.environ.get("DATA_TYPE") == "DSUM":
+    SPDA = 0x0100
+elif os.environ.get("DATA_TYPE") == "ZPP":
+    SPDA = 0x00F7
+else:
+    print(f"{fgColors.bYellow}'DATA_TYPE' not recognized - must be DSUM or ZPP.{fgColors.endc}")
+    sys.exit()
 icp.setCtlPacket(bank=packetBank.BANKA, SCS=SCSA, SCD=SCDA, SPD=SPDA)
 
 # -----------------------------------------------
