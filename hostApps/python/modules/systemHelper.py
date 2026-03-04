@@ -12,7 +12,7 @@
 #-- Additional Comments:
 #----------------------------------------------------------------------------------
 import subprocess
-import sys
+import sys, os
 import traceback
 from modules.fgColors import fgColors
 
@@ -58,6 +58,26 @@ def get_gitVersion():
         return version
     except BaseException as ex:
         return version
+
+def get_environVars():
+    #Get PDC-specific environment variables
+    pdcVarsList = ['SPAD_BIAS_V', 'HEAD_ID' ,'ANALOG_ONLY', 'RAD_SOURCE', 'TCR_FILE', 'PDC_EN', 'HOLD_TIME_NS', 'RECH_TIME','FLAG_TIME','N_SPAD','SCREAMER_THRESHOLD','FNAME', 'SAVE_PLOT']
+    environVars = os.environ
+    pdcVars = {}
+    for var in pdcVarsList:
+        if var in environVars.keys():
+            pdcVars[var]=environVars[var]
+
+    return pdcVars
+
+def save_environVars():
+    #Save PDC-specific environment variables to txt file
+    vars = get_environVars()
+    print("#!/bin/bash")
+    for k in vars.keys():
+        print(f"export {k}={vars[k]}\n")
+    return
+
 
 class Tee:
     # class to reproduce the behaviour of tee in linux CLI

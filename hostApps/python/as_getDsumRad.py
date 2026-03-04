@@ -34,7 +34,7 @@ import modules.systemHelper as systemHelper
 import modules.pixMap as pixMap
 from modules.zynqCtlPdcRoutines import initCtlPdcFromClient, packetBank
 from modules.zynqDataTransfer import zynqDataTransfer
-from modules.systemHelper import sectionPrint
+from modules.systemHelper import sectionPrint, save_environVars
 from modules.pdcHelper import *
 #from modules.zynqHelper import *
 from modules.h5Reader import *
@@ -178,7 +178,19 @@ if not analogOnly:
                                 f"-b {BIN_IDX_MODE} -t {DATA_TYPE} " \
                                 f"{zppOptions} ")
 
-
+# -----------------------------------------------
+# --- save config values
+# -----------------------------------------------
+sectionPrint("Save configuration values")
+# print both to terminal and a file the environment variables
+configFileName = os.path.splitext(dsumCsvFile)[0]+"_config.txt"
+configStatsFile = open(configFileName, 'w')
+defaultStdout = sys.stdout
+sys.stdout = systemHelper.Tee(defaultStdout, configStatsFile)
+save_environVars()
+# Restore original stdout and close the log file when done
+sys.stdout = defaultStdout
+configStatsFile.close()
 
 # -----------------------------------------------
 # --- prepare controller for acquisition
