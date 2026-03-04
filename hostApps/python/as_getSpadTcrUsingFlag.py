@@ -29,6 +29,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import warnings
 import threading
+import yaml
 
 # custom modules
 from modules.fgColors import fgColors
@@ -43,6 +44,19 @@ from modules.pdcHelper import *
 #from modules.zynqHelper import *
 from modules.h5Reader import *
 
+
+# -----------------------------------------------
+# --- parse configuration values from YAML
+# -----------------------------------------------
+with open('config_all.yaml','r') as f:
+    config_in = yaml.safe_load(f)
+    pdcConfig_in = config_in['pdcConfig']
+    dataConfig_in = config_in['dataConfig']
+    config_out = config_in.copy()
+
+# -----------------------------------------------
+# --- 
+# ----------------------------------------------- 
 try:
     scriptName = os.path.basename(__file__)
 except NameError:
@@ -58,6 +72,7 @@ test_start_time = time.time()
 tp = None
 
 # time to wait for each setting
+#measTime = dataConfig_in['measTime']
 measTime = float(os.environ.get("MEAS_TIME", default=0.2)) # second
 
 # NOTE: user can set hold, recharge and flag time using the following environment variables:
@@ -102,6 +117,7 @@ zynq.init()
 # -----------------------------------------------
 # --- prepare controller for acquisition
 # -----------------------------------------------
+#icp = initCtlPdcFromClient(client=client, sysClkPrd=10e-9, pdcEn=pdcConfig_in['pdcAcq'])
 # NOTE: select the PDC to use:
 #       pdcEn=0x1 -> PDC0
 #       pdcEn=0x2 -> PDC1
@@ -111,7 +127,6 @@ zynq.init()
 # NOTE: set environment variable PDC_EN tp set which PDCs to use
 pdcEn = int(os.environ.get("PDC_EN", default="0xF"), 0)
 icp = initCtlPdcFromClient(client=client, sysClkPrd=10e-9, pdcEn=pdcEn)
-
 
 # -----------------------------------------------
 # --- set system clock period
@@ -127,20 +142,7 @@ icp.resetCtl()
 # --- configure controller packet
 # -----------------------------------------------
 # NOTE always set SCSA register first to store other configuration registers in HDF5
-# configure CFG_STATUS_A
-    # 0x8000 = PDC_CFG
-    # 0x4000 = CTL_CFG
-    # 0x2000 = PDC_STATUS
-    # 0x1000 = PDC_STATUS_ALL
-    # 0x0007 = ALL CTL_STATUS
-SCSA = 0x0000
-# configure CTL_DATA_A
-SCDA = 0x0000
-# configure PDC_DATA_A
-    # 0x0100 = DSUM
-    # 0x00F7 = ZPP
-SPDA = 0x00F7
-icp.setCtlPacket(bank=packetBank.BANKA, SCS=SCSA, SCD=SCDA, SPD=SPDA)
+icp.setCtlPacket(bank=packetBank.BANKA, SCS=pdcConfig_in['registers']['scsa'], SCD=pdcConfig_in['registers']['scda'], SPD=pdcConfig_in['registers']['spda'])
 
 # -----------------------------------------------
 # --- set delay of CFG_DATA pins
@@ -167,7 +169,7 @@ icp.preparePDC()
 # --- 4096 for a complete 3D SPAD array
 # --- 64 for the embedded 2D CMOS SPADs
 # -----------------------------------------------
-icp.nSpad = int(os.environ.get("N_SPAD", default=64))
+icp.nSpad = int(os.environ.get("N_SPAD", default=4096))#64))
 
 # --------------------------
 # --- configure the PDCs ---
@@ -193,17 +195,21 @@ PDC_SETTING.PIXL = PIXL
 
 # === TIME REGISTER ===
 print("\n=== TIME REGISTER ===")
+#vals=client.runPrint(f"pdcTime --hold {pdcConfig_in['registers']['hold_time']} --rech {pdcConfig_in['registers']['recharge_time']} --flag {pdcConfig_in['registers']['flag_time']} -g", returnLines=True)
 HOLD_TIME = float(os.environ.get("HOLD_TIME_NS", default=150.0))
 RECH_TIME = float(os.environ.get("RECH_TIME_NS", default=10.0))
 FLAG_TIME = float(os.environ.get("FLAG_TIME_NS", default=10.0))
 client.runPrint(f"pdcTime --hold {HOLD_TIME} --rech {RECH_TIME} --flag {FLAG_TIME} -g")
 PDC_SETTING.TIME = client.runReturnSplitInt('pdcTime -g')
-
+#set output yaml values to real values from registers 
+#config_out['pdcConfig']['registers']['hold_time']=float(vals[2].split(" ")[-2][1:])
+#config_out['pdcConfig']['registers']['recharge_time']=float(vals[3].split(" ")[-2][1:])
+#config_out['pdcConfig']['registers']['flag_time']=float(vals[4].split(" ")[-2][1:])
 
 # === ANLG REGISTER ===
 print("\n=== ANLG REGISTER ===")
-ANLG = 0x0000; # disabled
-#ANLG = 0x001F; # full amplitude (~30 µA)
+#ANLG = 0x0000; # disabled
+ANLG = 0x001F; # full amplitude (~30 µA)
 client.runPrint(f"pdcCfg -a ANLG -r {ANLG} -g")  # set analog monitor
 PDC_SETTING.ANLG = ANLG
 
@@ -308,7 +314,8 @@ client.run(f"ctlCfg -a FSMM -r 0x0101 -g"); # triggered by a COMMAND
 # --- Class to generate the display of the results
 # --------------------------------------------------
 class tcrPlotter:
-    def __init__(self, figName, nPdcMax, nSpad, doSavePlot=False, doSaveGif=False, dataPath="default"):
+    def __init__(self, figName, nPdcMax, nSpad, doSavePlot=False, doSaveGif=False, dataPath="default", saveFinalPlot=False):
+
         """
         create an empty object with no data, but with figure properly formatted
         """
@@ -345,19 +352,28 @@ class tcrPlotter:
         self.dataFileName = ""
         self.doSavePlot = doSavePlot
         self.doSaveGif = doSaveGif
+        self.saveFinalPlot=saveFinalPlot
+
         self.plotIdx = 0
         self.fig = None
         self.dateStrPlot = datetime.datetime.now().strftime("%Y%m%d_%Hh%Mm%S")
+        self.name = "_"+dataConfig_in['name'] if len(dataConfig_in['name'])>0 else "" #AS - likely unnecessary now
+        self.saveTime = None
 
         # path to save CSV data
         if dataPath != "default" and os.path.isDir(dataPath):
             self.dataPath = dataPath
         else:
             # default path
-            #self.dataPath = os.path.join('.', 'TCR')
             self.dataPath = os.path.join(USER_DATA_DIR, 'TCR')
         # add script name to path
         self.dataPath = Path(os.path.join(self.dataPath, os.path.splitext(scriptName)[0]))
+
+        # path to save plots 
+        #self.plotPath = Path(os.path.join(self.dataPath, 'FIG')) if self.saveFinalPlot else Path(os.path.join(self.dataPath, 'FIG', self.dateStrPlot)) 
+        # path to save yaml 
+        self.yamlPath = Path(os.path.join(self.dataPath, 'YAML'))  
+
         # path to save plot
         self.plotPath = Path(os.path.join(self.dataPath, 'PNG'))
         # add a sub folder for all the images of the same measure
@@ -415,7 +431,11 @@ class tcrPlotter:
 
         # set titles
         self.axes.flat[self.axTcr].title.set_text("TCR as a function of the SPAD index")
+        self.axes.flat[self.axTcr].set_xlabel("PDC Index")
+        self.axes.flat[self.axTcr].set_ylabel(f"TCR over {measTime}s")
         self.axes.flat[self.axPop].title.set_text("Histogram of TCR")
+        self.axes.flat[self.axPop].set_xlabel("Percent of SPADS with TCR < y value")
+        self.axes.flat[self.axPop].set_ylabel(f"TCR over {measTime}s")
 
         # show legends
         self.updateLegend()
@@ -455,7 +475,7 @@ class tcrPlotter:
         self.axes.flat[self.axTcr].legend()
         self.axes.flat[self.axPop].legend(loc="upper left", title=f"{'': <26} {'avg': <14} {'med': <14}")
 
-    def updatePlot(self, iPdc=None):
+    def updatePlot(self, iPdc=None, final:bool=False):
         """
         set new data on the plot without stealing the focus
         """
@@ -504,6 +524,7 @@ class tcrPlotter:
 
         self.updateLegend()
         self.pausePlot(pauseTime=0.001)
+        self.savePlot(iPdc=iPdc, final=False)
         if self.doSaveGif:
             # save a picture at each update to generate a gif
             self.savePlot(iPdc=iPdc, doSaveGif=True)
@@ -637,7 +658,10 @@ class tcrPlotter:
         """
         save data to a CSV file
         """
-        #dateStr=datetime.datetime.now().strftime("%Y%m%d_%Hh%Mm%S")
+
+        dateStr=datetime.datetime.now().strftime("%Y%m%d_%Hh%Mm%S")
+        if self.saveTime == None:
+            self.saveTime = dateStr
         pdcStr=""
         df = pd.DataFrame()
         for iPdc in range(0, self.nPdcMax):
@@ -657,34 +681,54 @@ class tcrPlotter:
 
         if df.size > 0:
             # if there are data to export
+            #filename = f"{dateStr}_TCR_{pdcStr}_{int(measTime*1000):d}ms{self.name}.csv"
             filename = f"{self.getFileName()}{pdcStr}.csv"
             self.dataPath.mkdir(parents=True, exist_ok=True)
             datafile = os.path.join(self.dataPath, filename)
             print(f"{fgColors.green}Saving data to file {datafile}{fgColors.endc}")
             df.to_csv(datafile, sep=';', index=False, float_format="%.3E")
 
-    def savePlot(self, iPdc=None, doSaveGif=False):
+    def savePlot(self, iPdc=None, doSaveGif=False, final:bool=False):
         """
         save plot to a png file
         """
-        if self.fig and self.doSavePlot:
+        if (self.fig and self.doSavePlot) or (self.fig and self.saveFinalPlot and final):
             if iPdc == None or self.pdcValid[iPdc]:
-                if iPdc == None:
-                    pdcStr = ""
-                    for iPdc in range(0, self.nPdcMax):
-                        if self.pdcValid[iPdc]:
-                            pdcStr+=f"_PDC{iPdc}"
+                if self.saveFinalPlot:
+                    filename = f"TCR_{self.saveTime}{self.name}.png"
                 else:
-                    pdcStr=f"_PDC{iPdc}"
-                filename = f"{self.getFileName()}{pdcStr}_{self.plotIdx:06d}.png"
+                    filename = f"TCR_{self.plotIdx:06d}{self.name}.png"
                 self.plotPath.mkdir(parents=True, exist_ok=True)
-                if doSaveGif:
-                    datafile = os.path.join(self.plotPathGif, filename)
-                else:
-                    datafile = os.path.join(self.plotPath, filename)
-                print(f"saving plot to file {datafile}")
-                self.fig.savefig(datafile)
-                self.plotIdx += 1
+                datafile = os.path.join(self.plotPath, filename)
+                print(f"{fgColors.green}Saving plot to file {datafile}{fgColors.endc}")
+
+            if iPdc == None:
+                pdcStr = ""
+                for iPdc in range(0, self.nPdcMax):
+                    if self.pdcValid[iPdc]:
+                        pdcStr+=f"_PDC{iPdc}"
+            else:
+                pdcStr=f"_PDC{iPdc}"
+            filename = f"{self.getFileName()}{pdcStr}_{self.plotIdx:06d}.png"
+            self.plotPath.mkdir(parents=True, exist_ok=True)
+            if doSaveGif:
+                datafile = os.path.join(self.plotPathGif, filename)
+            else:
+                datafile = os.path.join(self.plotPath, filename)
+            print(f"saving plot to file {datafile}")
+            self.fig.savefig(datafile)
+            self.plotIdx += 1
+
+    def saveYaml(self):
+        """
+        dump config values to a yml file
+        """
+        filename = f"TCR_{self.saveTime}{self.name}.yml"
+        self.yamlPath.mkdir(parents=True, exist_ok=True)
+        datafile = os.path.join(self.yamlPath, filename)
+        print(f"{fgColors.green}Saving config to file {datafile}{fgColors.endc}")
+        with open(datafile, 'w') as outfile:
+            yaml.dump(config_out, outfile, default_flow_style=False)
 
     def checkExit(self):
         """
@@ -692,7 +736,6 @@ class tcrPlotter:
         """
         if not plt.fignum_exists(self.figName):
             print("\nFigure closed...")
-            #sys.exit()
             raise SystemExit
 
 
@@ -795,10 +838,13 @@ class LoopingMethod(IntEnum):
     rows_cols=1,
     index=2,
 
-def test_all_pixels(tp: tcrPlotter, update=False):
+def test_all_pixels(tp: tcrPlotter, update=False, numPdc=icp.nPdcMax):
     if type(tp) == type(None):
         print(f"{fgColors.red}tcrPlotter object must be created first{fgColors.endc}")
         sys.exit()
+
+    if tp.nPdcMax != numPdc:
+        numPdc = tp.nPdcMax
 
     # acquire data
     if icp.nSpad == 4096:
@@ -842,10 +888,10 @@ def test_all_pixels(tp: tcrPlotter, update=False):
                                   spadRow=spadRow,
                                   spadCol=spadCol,
                                   measTime=measTime,
-                                  numPdc=icp.nPdcMax)
+                                  numPdc=numPdc)
 
             # add new data for each PDC
-            for iPdc in range(0, icp.nPdcMax):
+            for iPdc in range(0, numPdc):
                 # put new data into data object
                 tp.newData(iPdc=iPdc,
                            iSpad=iSpad,
@@ -863,17 +909,21 @@ def test_all_pixels(tp: tcrPlotter, update=False):
 # --- Script main execution
 # ---------------------------------------
 sectionPrint("Script main execution")
+#define variable for testing
+nPdcTest = 1 if pdcConfig_in['pdcAcq']<10 else 4 #icp.nPdcMax
 try:
     # ---------------------------------------
     # --- Object to hold the plots
     # ---------------------------------------
     # doSavePlot will save the plot at each measure.
+    # saveFinalPlot will save only the last, cumulative plot
     # It will then increase the test time.
     # Use it only to generate a .gif of the measures
     tp = tcrPlotter(figName="TCR PLOTTER",
-                    nPdcMax=icp.nPdcMax,
+                    nPdcMax=nPdcTest,
                     nSpad=icp.nSpad,
-                    doSavePlot=os.environ.get("SAVE_PLOT", default=False))
+                    doSavePlot=os.environ.get("SAVE_PLOT", default=False),
+                    saveFinalPlot=dataConfig_in['savePlot'])
 
     # ---------------------------------------
     # --- SPAD count rate logic
@@ -890,9 +940,8 @@ try:
             tp.updatePlot()
         # update a last time
         tp.updatePlot()
-
     else:
-        test_all_pixels(tp=tp, update=True)
+        test_all_pixels(tp=tp, update=True, numPdc=nPdcTest)
 
     # save plot if enabled by user
     tp.savePlot()
@@ -901,7 +950,7 @@ try:
     sectionPrint("Estimate the TCR of the array (all pixels)")
     # NOTE: This estimation does not consider that the TCR is obtained with the flag.
     #       If the SPADs TCR is too high, the flag will underestimate the TCR (pixels overlap)
-    for iPdc in range(0, icp.nPdcMax):
+    for iPdc in range(0, nPdcTest):
         if tp.pdcValid[iPdc]:
             nSpad = tp.countValidSpads(iPdc)
             print(f"  PDC {iPdc} total TCR = {tp.pdcTcrAll[iPdc]: <8} " \
@@ -918,9 +967,10 @@ try:
         medianToMin=4
 
     # store all tested threshold methods to later select the one to use
+    #thresholdList = [[0]*nPdcTest for _ in range(0, len(ScreamerMethod))]
     thresholdList = np.zeros((len(ScreamerMethod), icp.nPdcMax))
 
-    for iPdc in range(0, icp.nPdcMax):
+    for iPdc in range(0, nPdcTest):
         if not tp.pdcValid[iPdc]:
             continue
 
@@ -960,6 +1010,7 @@ try:
         # enable/disable the pixels based on the distance from min to the median
         # NOTE: (median + (median - min)) = 2*median - min
         median = tp.getSpadMedTcr(iPdc)
+        thresholdList[ScreamerMethod.medianToMin][iPdc] = 1
         thresholdList[ScreamerMethod.medianToMin][iPdc] = 2.0*median-min(tp.spadTcr[iPdc])
         nSpadEnabled, spadEnabled = \
             tp.getSpadEnFromThreshold(  iPdc,
@@ -969,12 +1020,17 @@ try:
 
     # 4- estimate the TCR of the array with the screamers pixels disabled
     sectionPrint("Estimate the TCR of the array (no screamers)")
-    # NOTE: change here the method to use
-    method = ScreamerMethod.percent
+    
+    if dataConfig_in['screamerMethod'] not in ['threshold', 'average', 'percent', 'medianFactor', 'medianToMin']:
+        print(f"Screamer method {dataConfig_in['screamerMethod']} is not valid. Defaulting to: percent")
+        dataConfig_in['screamerMethod'] = 'percent'
+
+    #method = ScreamerMethod.percent
+    method = getattr(ScreamerMethod, dataConfig_in['screamerMethod'])
     print(f"selected method is {method.name}")
 
     # estimate the TCR using the given parameters
-    for iPdc in range(0, icp.nPdcMax):
+    for iPdc in range(0, nPdcTest):
         if not tp.pdcValid[iPdc]:
             continue
         threshold = thresholdList[method][iPdc]
@@ -998,7 +1054,7 @@ try:
 
     # 5- enable the selected SPADs
     sectionPrint("Enable the selected SPADs")
-    for iPdc in range(0, icp.nPdcMax):
+    for iPdc in range(0, nPdcTest):
         if not tp.pdcValid[iPdc]:
             continue
         # enable only the selected SPADs and print command (to copy to another script)
@@ -1046,5 +1102,10 @@ finally:
     if not 'test_stop_time' in locals():
         test_stop_time = time.time()
         print(f"{fgColors.bBlue}Test took {test_stop_time-test_start_time:.3f} seconds{fgColors.endc}")
+
+
+
+
+
 
 
