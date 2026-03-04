@@ -247,12 +247,29 @@ class zynqDataTransfer:
             return hostCmd.read().split()
         return []
 
+    def closeHexApp(self):
+        print("in closeHexApp")
+        print(self.__getHexAppPid())
+        if self.__getHexAppPid() != None:
+            print("closing something")
+            # close hexApp if open within this app
+            for PID in self.__getHexAppPid():
+                print(f"closing {self.hexAppName} at PID {PID}")
+                #os.popen(f"kill {PID}")
+                # to kill only if process is still active
+                try:
+                    os.popen(f"pgrep {self.hexAppName} | grep {self.__getHexAppPid()} | xargs -I {{}} kill {{}}")
+                except ImportError as e: # Python was shutting when this was called
+                    pass
+
 
     def getHexArgs(self):
         """
         get all arguments and options used to launch hex parser app (hexRead)
         """
         PID = self.__getHexAppPid()
+        print(len(PID), PID)
+        print(self.hexAppName)
         if len(PID) == 1:
             # a single PID, expected behaviour
             try:
@@ -313,7 +330,7 @@ class zynqDataTransfer:
         hdf5 app
         """
         PID = self.__getHexAppPid()
-        
+
         if len(PID) == 0:
             # no PID found for the app
             if self.launchedFromNfsServer:

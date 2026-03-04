@@ -150,7 +150,11 @@ DATE_STR = datetime.datetime.now().strftime("%Y%m%d_%Hh%Mm%S")
 # DATA_TYPE: "all", "NZ", "NZKF", "dt", "max"
 DATA_TYPE = "NZ"
 BIN_IDX_MODE = "time" # "continuous", "frame", "time"
-DATA_FILE_NAME = f"{DATE_STR}_{os.path.splitext(scriptName)[0]}_{headStr}{DATA_TYPE}_{BIN_IDX_MODE}{spadBiasStr}.csv"
+try:
+    extraName = "_"+os.environ["FNAME"] if os.environ.get("FNAME") is not None else ""
+except TypeError:
+    extraName = ""
+DATA_FILE_NAME = f"{DATE_STR}_{os.path.splitext(scriptName)[0]}_{headStr}{DATA_TYPE}_{BIN_IDX_MODE}{spadBiasStr}{extraName}.csv"
 dsumCsvFile = os.path.join(CSV_DATA_DIR, DATA_FILE_NAME)
 
 # zpp module settings
@@ -162,6 +166,8 @@ zppOptions = "" # disabled zpp readout
 
 # hexRead options (not saving to HDF5 file)
 if not analogOnly:
+    zynq.closeHexApp()
+
     zynq.initHex(autoStart=True,
                 archive=False,
                 printParsed=False,
@@ -641,7 +647,7 @@ for iPdc in range(icp.nPdcMax):
                         pixEnMask = pixEnMask,
                         returnAnalysis=False,
                         log=False,  # set log to True to print the values of the registers to program
-                        plot=False) # set plot to True to show tha map of the enabled pixels
+                        plot=os.environ.get("SAVE_PLOT")) # set plot to True to show the map of the enabled pixels
 
             # set plotMask to True to see the pixel mask (pixEnMask) not considering the TCR
             plotMask = False
