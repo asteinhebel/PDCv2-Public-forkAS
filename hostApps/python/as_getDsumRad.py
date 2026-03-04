@@ -659,7 +659,7 @@ for iPdc in range(icp.nPdcMax):
                         pixEnMask = pixEnMask,
                         returnAnalysis=False,
                         log=False,  # set log to True to print the values of the registers to program
-                        plot=os.environ.get("SAVE_PLOT")) # set plot to True to show the map of the enabled pixels
+                        plot=bool(os.environ.get("SAVE_PLOT"))) # set plot to True to show the map of the enabled pixels
 
             # set plotMask to True to see the pixel mask (pixEnMask) not considering the TCR
             plotMask = False
