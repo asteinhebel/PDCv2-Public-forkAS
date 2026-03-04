@@ -461,7 +461,8 @@ icp.preparePDC()
 # NOTE: Default icp.nSpad is 64 (2D CMOS SPAD)
 #       To user all of the 4096 pixels,
 #       uncomment the following line
-icp.nSpad = 4096
+totSpads = int(os.environ["N_SPAD"]) if (0<int(os.environ["N_SPAD"]))and(int(os.environ["N_SPAD"])<=4096) else 4096
+icp.nSpad = totSpads
 
 # --------------------------
 # --- configure the PDCs ---

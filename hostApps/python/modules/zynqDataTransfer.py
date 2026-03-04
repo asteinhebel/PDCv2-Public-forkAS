@@ -248,7 +248,6 @@ class zynqDataTransfer:
         return []
 
     def closeHexApp(self):
-        print(self.__getHexAppPid())
         if self.__getHexAppPid() != None:
             # close hexApp if open within this app
             for PID in self.__getHexAppPid():
