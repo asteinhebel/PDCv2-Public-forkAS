@@ -248,10 +248,8 @@ class zynqDataTransfer:
         return []
 
     def closeHexApp(self):
-        print("in closeHexApp")
         print(self.__getHexAppPid())
         if self.__getHexAppPid() != None:
-            print("closing something")
             # close hexApp if open within this app
             for PID in self.__getHexAppPid():
                 print(f"closing {self.hexAppName} at PID {PID}")
@@ -268,8 +266,6 @@ class zynqDataTransfer:
         get all arguments and options used to launch hex parser app (hexRead)
         """
         PID = self.__getHexAppPid()
-        print(len(PID), PID)
-        print(self.hexAppName)
         if len(PID) == 1:
             # a single PID, expected behaviour
             try:
