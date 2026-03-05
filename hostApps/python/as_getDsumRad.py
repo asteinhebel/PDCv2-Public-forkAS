@@ -36,7 +36,6 @@ from modules.zynqCtlPdcRoutines import initCtlPdcFromClient, packetBank
 from modules.zynqDataTransfer import zynqDataTransfer
 from modules.systemHelper import sectionPrint, strToBool, save_environVars
 from modules.pdcHelper import *
-#from modules.zynqHelper import *
 from modules.h5Reader import *
 
 import modules.pdcSpadFunctions as pdcSpadFunctions
@@ -142,6 +141,8 @@ zynq.initDataReader(dataReaderLaunch=True)
 
 # dsum module settings
 CSV_DATA_DIR = os.path.join(USER_DATA_DIR, f"DSUM_CSV_3D_{radSource}")
+if not os.path.exists(CSV_DATA_DIR):
+    os.makedirs(CSV_DATA_DIR)
 DATE_STR = datetime.datetime.now().strftime("%Y%m%d_%Hh%Mm%S")
 # DATA_TYPE: "all", "NZ", "NZKF", "dt", "max"
 DATA_TYPE = "NZ"
