@@ -34,7 +34,7 @@ import modules.systemHelper as systemHelper
 import modules.pixMap as pixMap
 from modules.zynqCtlPdcRoutines import initCtlPdcFromClient, packetBank
 from modules.zynqDataTransfer import zynqDataTransfer
-from modules.systemHelper import sectionPrint, save_environVars
+from modules.systemHelper import sectionPrint, strToBool, save_environVars
 from modules.pdcHelper import *
 #from modules.zynqHelper import *
 from modules.h5Reader import *
@@ -51,7 +51,6 @@ except NameError:
 # -----------------------------------------------
 # NOTE: user can set hold, recharge and flag time using the following environment variables:
 #       HOLD_TIME_NS, RECH_TIME_NS, FLAG_TIME_NS
-
 
 # NOTE: set environment variable SPAD_BIAS_V to store it in data file name
 spadBiasStr=""
@@ -92,11 +91,7 @@ print(f"Radiation source: {radSource}")
 
 # NOTE: when set to analogOnly, no csv file is generated.
 #       Flag output is set as flag, instead of dsum threshold
-analogOnly = os.environ.get("ANALOG_ONLY", default="False").lower().strip()
-if analogOnly in ('true', '1'):
-    analogOnly = True
-else:
-    analogOnly = False
+analogOnly = strToBool(os.environ.get("ANALOG_ONLY", default="False"))
 print(f"analogOnly: {analogOnly}")
 
 
@@ -167,8 +162,6 @@ zppOptions = "" # disabled zpp readout
 
 # hexRead options (not saving to HDF5 file)
 if not analogOnly:
-    zynq.closeHexApp()
-
     zynq.initHex(autoStart=True,
                 archive=False,
                 printParsed=False,
@@ -671,7 +664,7 @@ for iPdc in range(icp.nPdcMax):
                         pixEnMask = pixEnMask,
                         returnAnalysis=False,
                         log=False,  # set log to True to print the values of the registers to program
-                        plot=bool(os.environ.get("SAVE_PLOT"))) # set plot to True to show the map of the enabled pixels
+                        plot=strToBool(os.environ["SAVE_PLOT"])) # set plot to True to show the map of the enabled pixels
 
             # set plotMask to True to see the pixel mask (pixEnMask) not considering the TCR
             plotMask = False
@@ -801,6 +794,7 @@ except KeyboardInterrupt:
 
 finally:
     client.runPrint("stop")
+    del zynq
     # total execution time
     test_stop_time = time.time()
     test_duration_sec = test_stop_time-test_start_time

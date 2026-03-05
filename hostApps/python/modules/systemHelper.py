@@ -59,6 +59,14 @@ def get_gitVersion():
     except BaseException as ex:
         return version
 
+def strToBool(var):
+    #Convert environment variable interpreted as a string to the appropriate boolean value
+
+    if var in ('true', 'True', '1'):
+        return True
+    else:
+        return False
+
 def get_environVars():
     #Get PDC-specific environment variables
     pdcVarsList = ['SPAD_BIAS_V', 'HEAD_ID' ,'ANALOG_ONLY', 'RAD_SOURCE', 'TCR_FILE', 'PDC_EN', 'HOLD_TIME_NS', 'RECH_TIME','FLAG_TIME','N_SPAD','SCREAMER_THRESHOLD','FNAME', 'SAVE_PLOT', 'DATA_TYPE','COIN_WLEN','COIN_NCH_TH','COIN_NUM_BANK']

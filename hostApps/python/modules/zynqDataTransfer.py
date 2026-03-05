@@ -247,19 +247,6 @@ class zynqDataTransfer:
             return hostCmd.read().split()
         return []
 
-    def closeHexApp(self):
-        if self.__getHexAppPid() != None:
-            # close hexApp if open within this app
-            for PID in self.__getHexAppPid():
-                print(f"closing {self.hexAppName} at PID {PID}")
-                #os.popen(f"kill {PID}")
-                # to kill only if process is still active
-                try:
-                    os.popen(f"pgrep {self.hexAppName} | grep {self.__getHexAppPid()} | xargs -I {{}} kill {{}}")
-                except ImportError as e: # Python was shutting when this was called
-                    pass
-
-
     def getHexArgs(self):
         """
         get all arguments and options used to launch hex parser app (hexRead)
