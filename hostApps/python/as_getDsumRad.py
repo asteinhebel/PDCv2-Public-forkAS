@@ -53,8 +53,8 @@ except NameError:
 
 # NOTE: set environment variable SPAD_BIAS_V to store it in data file name
 spadBiasStr=""
-if os.environ.get("SPAD_BIAS_V") is not None:
-    spadBias = os.environ['SPAD_BIAS_V']
+if os.getenv("SPAD_BIAS_V") is not None:
+    spadBias = os.getenv('SPAD_BIAS_V', default=25)
     if '.' in spadBias:
         spadBiasStr = "_" + spadBias.replace('.', "V")
     elif ',' in spadBias:
@@ -67,8 +67,8 @@ if os.environ.get("SPAD_BIAS_V") is not None:
 #NOTE: set environment variable HEAD_ID to store it in data file name
 #      only set the integer value (e.g. 48)
 headStr = ""
-if os.environ.get("HEAD_ID") is not None:
-    headId = os.environ['HEAD_ID']
+if os.getenv("HEAD_ID") is not None:
+    headId = os.getenv('HEAD_ID')
     headStr = f"H{headId}_"
     print(f"Using head {headId}")
 
@@ -81,8 +81,8 @@ if os.environ.get("HEAD_ID") is not None:
 #radSource = "Am241"
 #radSource = "xray"
 #radSource = "background"
-if os.environ.get("RAD_SOURCE") is not None:
-    radSource = os.environ['RAD_SOURCE']
+if os.getenv("RAD_SOURCE") is not None:
+    radSource = os.getenv('RAD_SOURCE')
 else:
     radSource = ""
 print(f"Radiation source: {radSource}")
@@ -90,14 +90,14 @@ print(f"Radiation source: {radSource}")
 
 # NOTE: when set to analogOnly, no csv file is generated.
 #       Flag output is set as flag, instead of dsum threshold
-analogOnly = strToBool(os.environ.get("ANALOG_ONLY", default="False"))
+analogOnly = strToBool(os.getenv("ANALOG_ONLY", default="False"))
 print(f"analogOnly: {analogOnly}")
 
 
 # NOTE: specify a TCR file (from getSpadTcrUSingFlag.py) to set which pixels to enable
 tcrFile = None # default value will throw an error
-if os.environ.get("TCR_FILE") is not None:
-    tcrFile = os.environ["TCR_FILE"]
+if os.getenv("TCR_FILE") is not None:
+    tcrFile = os.getenv("TCR_FILE")
     # check if full path is specified
     if os.path.isfile(tcrFile):
         # user specified with full path
@@ -148,11 +148,13 @@ DATE_STR = datetime.datetime.now().strftime("%Y%m%d_%Hh%Mm%S")
 DATA_TYPE = "NZ"
 BIN_IDX_MODE = "time" # "continuous", "frame", "time"
 try:
-    extraName = "_"+os.environ["FNAME"] if os.environ.get("FNAME") is not None else ""
+    extraName = "_"+os.getenv("FNAME") if os.getenv("FNAME") is not None else ""
 except TypeError:
     extraName = ""
 DATA_FILE_NAME = f"{DATE_STR}_{os.path.splitext(scriptName)[0]}_{headStr}{DATA_TYPE}_{BIN_IDX_MODE}{spadBiasStr}{extraName}.csv"
 dsumCsvFile = os.path.join(CSV_DATA_DIR, DATA_FILE_NAME)
+print(f"{fgColors.blue}Writing CSV to {dsumCsvFile}{fgColors.endc}")
+
 
 # zpp module settings
 CSV_ZPP_DIR = os.path.join(USER_DATA_DIR, f"ZPP_CSV_3D_{radSource}")
@@ -197,7 +199,7 @@ configStatsFile.close()
 #       pdcEn=0x8 -> PDC3
 #       pdcEn=0xF -> PDC0, PDC1, PDC2, PDC3
 # NOTE: set environment variable PDC_EN tp set which PDCs to use
-pdcEn = int(os.environ.get("PDC_EN", default="0xF"), 0)
+pdcEn = int(os.getenv("PDC_EN", default="0xF"), 0)
 icp = initCtlPdcFromClient(client=client, sysClkPrd=10e-9, pdcEn=pdcEn)
 
 # -----------------------------------------------
@@ -228,12 +230,12 @@ SCDA = 0x0001
     # 0x0100 = DSUM
     # 0x00F7 = ZPP
 
-if os.environ.get("DATA_TYPE") is None:
+if os.getenv("DATA_TYPE", default="DSUM") is None:
     print(f"{fgColors.bYellow}'DATA_TYPE' not recognized - must be DSUM or ZPP.{fgColors.endc}")
     sys.exit()
-elif os.environ.get("DATA_TYPE") == "DSUM":
+elif os.getenv("DATA_TYPE") == "DSUM":
     SPDA = 0x0100
-elif os.environ.get("DATA_TYPE") == "ZPP":
+elif os.getenv("DATA_TYPE") == "ZPP":
     SPDA = 0x00F7
 else:
     print(f"{fgColors.bYellow}'DATA_TYPE' not recognized - must be DSUM or ZPP.{fgColors.endc}")
@@ -455,7 +457,8 @@ icp.preparePDC()
 # NOTE: Default icp.nSpad is 64 (2D CMOS SPAD)
 #       To user all of the 4096 pixels,
 #       uncomment the following line
-totSpads = int(os.environ["N_SPAD"]) if (0<int(os.environ["N_SPAD"]))and(int(os.environ["N_SPAD"])<=4096) else 4096
+n_spad_in = os.getenv("N_SPAD", default=4096)
+totSpads = int(n_spad_in) if (0<int(n_spad_in))and(int(n_spad_in)<=4096) else 4096 #ensure value is between 0 and 4096
 icp.nSpad = totSpads
 
 # --------------------------
@@ -482,9 +485,9 @@ PDC_SETTING.PIXL = PIXL
 
 # === TIME REGISTER ===
 print("\n=== TIME REGISTER ===")
-HOLD_TIME = float(os.environ.get("HOLD_TIME_NS", default=250.0))
-RECH_TIME = float(os.environ.get("RECH_TIME_NS", default=10.0))
-FLAG_TIME = float(os.environ.get("FLAG_TIME_NS", default=2.0))
+HOLD_TIME = float(os.getenv("HOLD_TIME_NS", default=250.0))
+RECH_TIME = float(os.getenv("RECH_TIME_NS", default=10.0))
+FLAG_TIME = float(os.getenv("FLAG_TIME_NS", default=2.0))
 client.runPrint(f"pdcTime --hold {HOLD_TIME} --rech {RECH_TIME} --flag {FLAG_TIME} -g")
 PDC_SETTING.TIME = client.runReturnSplitInt('pdcTime -g')
 
@@ -656,7 +659,8 @@ for iPdc in range(icp.nPdcMax):
             # NOTE: convertPixArrayToReg function from python module pdcSpadFunctions
             # supported methods: constant, average, percent, medianFactor, medianToMin
             # Here, keeping only SPADs with TCR below 100 cps (thConst)
-            constant_threshold = float(os.environ.get("SCREAMER_THRESHOLD")) if os.environ.get("SCREAMER_THRESHOLD") is not None else 100.0
+            constant_threshold = float(os.getenv("SCREAMER_THRESHOLD")) if os.getenv("SCREAMER_THRESHOLD") is not None else 100.0
+            #constant_threshold = 200.0
             regs = pdcSpadFunctions.convertPixArrayToReg(
                         pixArray=dfTcr[f"SPAD_TCR{iPdc}"],
                         thMethod=pdcSpadFunctions.ThreshMethod.constant,
@@ -665,7 +669,7 @@ for iPdc in range(icp.nPdcMax):
                         pixEnMask = pixEnMask,
                         returnAnalysis=False,
                         log=False,  # set log to True to print the values of the registers to program
-                        plot=strToBool(os.environ["SAVE_PLOT"])) # set plot to True to show the map of the enabled pixels
+                        plot=strToBool(os.getenv("SAVE_PLOT"))) # set plot to True to show the map of the enabled pixels
 
             # set plotMask to True to see the pixel mask (pixEnMask) not considering the TCR
             plotMask = False
@@ -733,12 +737,12 @@ client.runPrint(f"ctlCfg -a COI0 -r 0x{icp.pdcEnUser&0xFFFF:04x} -g")
 client.runPrint(f"ctlCfg -a COI1 -r 0x{(icp.pdcEnUser>>16)&0xFFFF:04x} -g")
 
 # set the width of the coincidence windows (in clock cycle period)
-COIN_WLEN = int(os.environ.get("COIN_WLEN", default=1))# coincidence windows of X clock cycles
+COIN_WLEN = int(os.getenv("COIN_WLEN", default=1))# coincidence windows of X clock cycles
 client.runPrint(f"ctlCfg -a COIW -r 0x{COIN_WLEN&0x03FF:04x} -g")
 
 # set the coincidence thresholds
-NCH_TH = int(os.environ.get("COIN_NCH_TH", default=1))# number of PDC channel for a coincidence
-NUM_BANK = int(os.environ.get("COIN_NUM_BANK", default=1))# number of hits per PDC   
+NCH_TH = int(os.getenv("COIN_NCH_TH", default=1))# number of PDC channel for a coincidence
+NUM_BANK = int(os.getenv("COIN_NUM_BANK", default=1))# number of hits per PDC   
 cothReg = ((NCH_TH&0x7F)<<8) | (NUM_BANK&0x7)
 client.runPrint(f"ctlCfg -a COTH -r 0x{cothReg:04x} -g")
 
