@@ -846,7 +846,8 @@ if int(inst_dcps.query("OUTP?")) == 1:
     print("output is on - turn it off")
     inst_dcps.write("OUTP OFF")
 #Set over current and over voltage protections
-inst_dcps.write("VOLT:PROT 25.5")
+spadBiasV = int(os.environ.get("SPAD_BIAS_V", default=25))
+inst_dcps.write(f"VOLT:PROT {spadBiasV+0.5}")
 
 # ---------------------------------------
 # --- Notify user of manual steps
@@ -875,7 +876,7 @@ try:
         inst_dcps.write("OUTP ON")
 
         print("Keysight HV Ramping up....")
-        for vUp in range(25+1):
+        for vUp in range(spadBiasV+1):
             time.sleep(0.5)
             inst_dcps.write(f"APPL {float(vUp)}, 0.1")
         print("Keysight HV is supplied")
