@@ -38,7 +38,7 @@ import modules.systemHelper as systemHelper
 import modules.pixMap as pixMap
 from modules.zynqCtlPdcRoutines import initCtlPdcFromClient, packetBank
 from modules.zynqDataTransfer import zynqDataTransfer
-from modules.systemHelper import sectionPrint
+from modules.systemHelper import sectionPrint, save_environVars
 from modules.pdcHelper import *
 from modules.h5Reader import *
 
@@ -50,7 +50,6 @@ with open('config_all.yaml','r') as f:
     config_in = yaml.safe_load(f)
     pdcConfig_in = config_in['pdcConfig']
     dataConfig_in = config_in['dataConfig']
-    config_out = config_in.copy()
 
 # -----------------------------------------------
 # --- 
@@ -199,10 +198,6 @@ RECH_TIME = float(os.environ.get("RECH_TIME_NS", default=10.0))
 FLAG_TIME = float(os.environ.get("FLAG_TIME_NS", default=10.0))
 client.runPrint(f"pdcTime --hold {HOLD_TIME} --rech {RECH_TIME} --flag {FLAG_TIME} -g")
 PDC_SETTING.TIME = client.runReturnSplitInt('pdcTime -g')
-#set output yaml values to real values from registers 
-#config_out['pdcConfig']['registers']['hold_time']=float(vals[2].split(" ")[-2][1:])
-#config_out['pdcConfig']['registers']['recharge_time']=float(vals[3].split(" ")[-2][1:])
-#config_out['pdcConfig']['registers']['flag_time']=float(vals[4].split(" ")[-2][1:])
 
 # === ANLG REGISTER ===
 print("\n=== ANLG REGISTER ===")
@@ -319,7 +314,7 @@ def checkSystHealth(healthbytes):
         inst_bkps.write("PROT:OVP OFF")
         return
     else:
-        print(f"Failed system health: {systHealth}")
+        print(f"Failed system health: {healthbytes}")
         sys.exit()
 
 ###Identify supplies
@@ -373,6 +368,8 @@ if int(inst_dcps.query("OUTP?")) == 1:
 spadBiasV = int(os.environ.get("SPAD_BIAS_V", default=25))
 inst_dcps.write(f"VOLT:PROT {spadBiasV+0.5}")
 
+#Set over current and over voltage protections
+inst_dcps.write("VOLT:PROT 25.5")
 
 # ---------------------------------------
 # --- Notify user of manual steps
@@ -477,8 +474,6 @@ class tcrPlotter:
 
         # path to save plots 
         #self.plotPath = Path(os.path.join(self.dataPath, 'FIG')) if self.saveFinalPlot else Path(os.path.join(self.dataPath, 'FIG', self.dateStrPlot)) 
-        # path to save yaml 
-        self.yamlPath = Path(os.path.join(self.dataPath, 'YAML'))  
 
         # path to save plot
         self.plotPath = Path(os.path.join(self.dataPath, 'PNG'))
@@ -824,17 +819,6 @@ class tcrPlotter:
             print(f"saving plot to file {datafile}")
             self.fig.savefig(datafile)
             self.plotIdx += 1
-
-    def saveYaml(self):
-        """
-        dump config values to a yml file
-        """
-        filename = f"TCR_{self.saveTime}{self.name}.yml"
-        self.yamlPath.mkdir(parents=True, exist_ok=True)
-        datafile = os.path.join(self.yamlPath, filename)
-        print(f"{fgColors.green}Saving config to file {datafile}{fgColors.endc}")
-        with open(datafile, 'w') as outfile:
-            yaml.dump(config_out, outfile, default_flow_style=False)
 
     def checkExit(self):
         """
@@ -1229,6 +1213,20 @@ finally:
     inst_bkps.write("PROT:OCP OFF")
     inst_bkps.write("PROT:OVP OFF")
     inst_bkps.close()
+
+    # -----------------------------------------------
+    # --- save config values
+    # -----------------------------------------------
+    sectionPrint("Save configuration values")
+    # print both to terminal and a file the environment variables
+    configFileName = str(tp.dataPath)+"/config.txt" #AS - will overwrite, need to update
+    configStatsFile = open(configFileName, 'w')
+    defaultStdout = sys.stdout
+    sys.stdout = systemHelper.Tee(defaultStdout, configStatsFile)
+    save_environVars()
+    # Restore original stdout and close the log file when done
+    sys.stdout = defaultStdout
+    configStatsFile.close()
 
     if not 'test_stop_time' in locals():
         test_stop_time = time.time()
