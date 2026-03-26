@@ -794,7 +794,7 @@ def checkSystHealth(healthbytes):
         inst_bkps.write("PROT:OVP OFF")
         return
     else:
-        print(f"Failed system health: {systHealth}")
+        print(f"Failed system health: {healthbytes}")
         sys.exit()
 
 ###Identify supplies
@@ -848,6 +848,9 @@ if int(inst_dcps.query("OUTP?")) == 1:
 #Set over current and over voltage protections
 spadBiasV = int(os.environ.get("SPAD_BIAS_V", default=25))
 inst_dcps.write(f"VOLT:PROT {spadBiasV+0.5}")
+
+#Set over current and over voltage protections
+inst_dcps.write("VOLT:PROT 25.5")
 
 # ---------------------------------------
 # --- Notify user of manual steps
@@ -910,7 +913,7 @@ except KeyboardInterrupt:
 
 finally:
     # ORNL SPECIFIC - turn off power 
-    input("Turn off power supplies")
+    print("Turn off power supplies")
     print("Keysight ramping down....")
     for vDown in range(25,-1,-1):
         time.sleep(0.5)
