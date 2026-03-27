@@ -11,6 +11,7 @@ export HOLD_TIME_NS=5000.0
 export RECH_TIME=10.0
 export FLAG_TIME=2.0
 export N_SPAD=4096
+#OPTIONS: may be 0-100% value, TCR threshold, TCR average
 export SCREAMER_THRESHOLD=400.0
 export FNAME="test_new"
 export SAVE_PLOT=False
@@ -19,3 +20,5 @@ export COIN_WLEN=1
 export COIN_NCH_TH=1
 export COIN_NUM_BANK=1
 export MEAS_TIME=0.5
+#OPTIONS: threshold, average, percent, medianFactor, medianToMin
+export SCREAMER_METHOD="average"
