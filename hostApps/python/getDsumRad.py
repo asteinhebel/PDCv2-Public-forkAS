@@ -147,7 +147,7 @@ zynq.initDataReader(dataReaderLaunch=True)
 CSV_DATA_DIR = os.path.join(USER_DATA_DIR, f"DSUM_CSV_3D_{radSource}")
 DATE_STR = datetime.datetime.now().strftime("%Y%m%d_%Hh%Mm%S")
 # DATA_TYPE: "all", "NZ", "NZKF", "dt", "max"
-DATA_TYPE = "NZ"
+DATA_TYPE = "NZKF"
 BIN_IDX_MODE = "time" # "continuous", "frame", "time"
 DATA_FILE_NAME = f"{DATE_STR}_{os.path.splitext(scriptName)[0]}_{headStr}{DATA_TYPE}_{BIN_IDX_MODE}{spadBiasStr}.csv"
 dsumCsvFile = os.path.join(CSV_DATA_DIR, DATA_FILE_NAME)
@@ -586,6 +586,7 @@ dfTcr = pd.read_csv(tcrFile, header=0, sep=';')
 
 # print both to terminal and a file the enabled pixels statistics
 pixelStatsFileName = os.path.splitext(dsumCsvFile)[0]+".txt"
+os.makedirs(os.path.dirname(pixelStatsFileName), exist_ok=True)
 pixelStatsFile = open(pixelStatsFileName, 'w')
 defaultStdout = sys.stdout
 sys.stdout = systemHelper.Tee(defaultStdout, pixelStatsFile)
