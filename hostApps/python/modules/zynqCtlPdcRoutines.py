@@ -322,7 +322,7 @@ class initCtlPdcFromClient():
             print(f"{fgColors.red}ERROR: expected to find {len(statusToValidate)} status registers, but only found {nStatusFound}.{fgColors.endc}")
             sys.exit()
 
-    def cfgAllPixRegs(self, regs, iPdc=None):
+    def cfgAllPixRegs(self, regs, iPdc=None, printCmd=False):
         """
         program all the pixel enable registers of the PDC.
         regs must be an array of 256 elements of 16 bits
@@ -340,10 +340,11 @@ class initCtlPdcFromClient():
         cmd += f"pdcPix --dis {pdcStr} --mode NONE; \n"
         # loop for each register and append the command
         for addr, reg in enumerate(regs):
-            cmd += f"pdcPix --addr {addr} --reg 0x{reg:04x} --mode NONE; \n"
+            if not (reg == 0):
+                cmd += f"pdcPix --addr {addr} --reg 0x{reg:04x} --mode NONE; \n"
         if addr != 255:
-            print(f"{fgColors.red}ERROR: not prgramming all the registers.{fgColors.endc}")
-        self.client.runPrint(cmd, printCmd=False)
+            print(f"{fgColors.red}ERROR: not programming all the registers.{fgColors.endc}")
+        self.client.runPrint(cmd, printCmd=printCmd)
 
     def initExample(self):
         """
