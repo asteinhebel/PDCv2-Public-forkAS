@@ -575,10 +575,10 @@ sectionPrint("enable PDC SPADs")
 
 # generate a pattern to select which SPADs to enable
 pixEnMask = np.zeros((pixMap.TOP_NX_PIX, pixMap.TOP_NY_PIX), dtype=int) # init an empty mask to set later
-maskCX = 32 # center position in X axis (from wirebond 1 to wirebond 32)
-maskCY = 32 # center position in Y axis (from CMOS pads to 2D SPADs)
-maskX = 64 # width in X axis (used to match scintillator size)
-maskY = 64 # width in Y axis (used to match scintillator size)
+maskCX = 34 # center position in X axis (from wirebond 1 to wirebond 32)
+maskCY = 35 # center position in Y axis (from CMOS pads to 2D SPADs)
+maskX = 41 # width in X axis (used to match scintillator size)
+maskY = 41 # width in Y axis (used to match scintillator size)
 
 
 # load TCR CSV file into a pandas dataframe
@@ -635,8 +635,9 @@ for iPdc in range(icp.nPdcMax):
             # Here, keeping only SPADs with TCR below 100 cps (thConst)
             regs = pdcSpadFunctions.convertPixArrayToReg(
                         pixArray=dfTcr[f"SPAD_TCR{iPdc}"],
-                        thMethod=pdcSpadFunctions.ThreshMethod.constant,
+                        thMethod=pdcSpadFunctions.ThreshMethod.percent,
                         thConst=100.0,
+                        thPct=95,
                         thOp=pdcSpadFunctions.ThreshOp.le,
                         pixEnMask = pixEnMask,
                         returnAnalysis=False,

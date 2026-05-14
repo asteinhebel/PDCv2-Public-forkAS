@@ -19,9 +19,12 @@ import os, sys, re, ast
 import inspect
 import math
 import random
+import matplotlib.colors
 import pandas as pd
 import numpy as np
 import time, datetime
+
+import scipy.stats
 
 try:
     from scipy.signal import savgol_filter, find_peaks, peak_prominences
@@ -33,8 +36,12 @@ except ImportError:
 
 import matplotlib
 import matplotlib.pyplot as plt
-import matplotlib.text as text
 from matplotlib import colors
+
+import numpy as np
+import matplotlib.pyplot as plt
+import scipy
+import seaborn as sns
 
 # custom modules
 from modules.fgColors import fgColors
@@ -42,6 +49,8 @@ from modules.systemHelper import sectionPrint
 import modules.pandasHelper as pdh
 import modules.hexReadCsvParser as hrcp
 import modules.energySpectrumAnalysisHelper as esah
+
+
 
 # -----------------------------------------------
 # --- list available functions
@@ -559,7 +568,7 @@ def getDsumDt(dfGroup):
     # suppressed in the original CSV file loaded into the DataFrame.
     # NOTE: changes are directly applied to the DataFrame refered by group "dfGroup"
     """
-    dfGroup.obj.loc[:, "dt"] = dfGroup["dataIdx"].diff().fillna(value=1).astype(np.int8)
+    dfGroup.obj.loc[:, "dt"] = dfGroup["dataIdx"].diff().fillna(value=1).astype(np.int16)
 
 def getDsumBinIdx(dfGroup):
     """
@@ -594,7 +603,7 @@ def getDsumFramePeakInfo(dfGroup):
     _df.loc[:, "dataIdxPeak"] = _df.loc[dfGroup["dsum"].transform("idxmax").values, "dataIdx"].values
 
     # Adding a column "dtPeak" with the bin delta between the peak and the current bin
-    _df.loc[:, "dtPeak"] = (dfGroup.obj["dataIdx"].astype(np.int64) - dfGroup.obj["dataIdxPeak"]).astype(np.int8)
+    _df.loc[:, "dtPeak"] = (dfGroup.obj["dataIdx"].astype(np.int64) - dfGroup.obj["dataIdxPeak"]).astype(np.int16)
 
 def getDsumPrelimEnergy(dfGroup):
     """
@@ -790,7 +799,7 @@ def getHoldOffFromDsum(dfIn, dfMaxFrameToUse=20000,
 
         # Find fit parameters
         try:
-            popt, pcov = curve_fit(expDecay, xDecay0[:10], yDecay[:10], p0=p0)
+            popt, pcov = curve_fit(expDecay, xDecay0[:15], yDecay[:15], p0=p0)
             print(f"Tau (fit) = {popt[1]:.3f} samples")
         except RuntimeError as ex:
             print(f"    RuntimeError during curve_fit:\n{ex}")
@@ -1225,11 +1234,11 @@ def getMaxNumberOfPixelTriggered(dfIn, numPixEnabled:list):
     # NOTE: Can be used as an estimate if number of enabled pixels is unknown.
     maxNumOfPixelTriggered = dfIn.groupby("pdcIdx")["dsumLevel"].max()
 
-    for iPdc, (maxNumPixTrg, numPixEnPerPdc) in enumerate(zip(maxNumOfPixelTriggered, numPixEn)):
+    for iPdc, (maxNumPixTrg, numPixEnPerPdc) in enumerate(zip(maxNumOfPixelTriggered, numPixEnabled)):
         print(f"PDC{iPdc}, max:{maxNumPixTrg}, en:{numPixEnPerPdc}, ({100.0*maxNumPixTrg/numPixEnPerPdc:.03f} %)")
 
     # for each sample, store the total number of enabled pixel
-    dfIn["numPix"] = dfIn["pdcIdx"].map(pd.Series(numPixEn)).astype(np.uint16)
+    dfIn["numPix"] = dfIn["pdcIdx"].map(pd.Series(numPixEnabled)).astype(np.uint16)
 
     # for each sample, store the number of remaining pixel after each bin
     # NOTE: casted numPix as an integer to prevent negative unsigned substraction to end up as large numbers
@@ -1257,13 +1266,16 @@ def applyDsumLinearity(dfIn) -> tuple:
     if not {"nAvail"}.issubset(dfIn.columns):
         raise KeyError("First call 'getMaxNumberOfPixelTriggered' on 'dfIn'"\
                        "to generate column 'nAvail'")
-    dfIn["dsumLin"] = dfIn["dsum"]
+    dfIn["dsumLin"] = dfIn["dsum"].astype(np.float32)
 
     # find where it is safe to apply linearity (no zero division, no log(0)
     maskLin = combineFilters([dfIn["nAvail"] > 0, dfIn["dsum"] <= dfIn["nAvail"]])
 
+
+    N = dfIn.loc[maskLin, "nAvail"].max().astype(np.float32) # Number of SPADs
+
     logTerm = 1-dfIn.loc[maskLin, "dsum"].values/dfIn.loc[maskLin, "nAvail"].values
-    dfIn.loc[maskLin, "dsumLin"] = np.round(-dfIn.loc[maskLin, "nAvail"].values.astype(float)*np.log(logTerm)).astype(dfIn["dsum"].dtype)
+    dfIn.loc[maskLin, "dsumLin"] = -N*np.log(logTerm)
 
     # evaluate the number of bins affected by linearity
     maskLin = dfIn["dsum"] != dfIn["dsumLin"]
@@ -1274,8 +1286,7 @@ def applyDsumLinearity(dfIn) -> tuple:
 # -----------------------------------------------
 # --- Pulse shape discrimination
 # -----------------------------------------------
-def applyPsd(dfIn, nPrompt=1, nTotal=-1,
-             colToPsd="dsum") -> None:
+def applyPsd(dfIn, nPrompt_l=0, nPrompt_r=1, nTotal=-1, colToPsd="dsum") -> pd.DataFrame:
     """
     # Apply PSD on a DataFrame
     # NOTE: changes are directly applied to the DataFrame argument "dfIn"
@@ -1286,12 +1297,13 @@ def applyPsd(dfIn, nPrompt=1, nTotal=-1,
     # nTotal -> number of "total" bins to keep starting from peak value.
     #           Set nTotal to -1 to use all data in the frame.
     # colToPsd -> column of the DataFrame to use for PSD calculation
+    # Return post-processed CSV with Energy/PSD extracted for each event of each PDCs
     """
     # remove columns from a previous run
     dfIn.drop(columns=["psdPrompt", "psdTotal", "psd"], errors='ignore', inplace=True)
 
     # select which rows to use as prompt
-    dfIn.loc[:, "psdPrompt"] = dfIn[colToPsd].where(dfIn["dtPeak"] < nPrompt, 0)
+    dfIn.loc[:, "psdPrompt"] = dfIn[colToPsd].where(dfIn["dtPeak"].between(nPrompt_l, nPrompt_r), 0)
 
     # select which rows to use as total
     if nTotal == -1:
@@ -1299,16 +1311,32 @@ def applyPsd(dfIn, nPrompt=1, nTotal=-1,
         dfIn.loc[:, "psdTotal"] = dfIn[colToPsd]
     else:
         # using a subset of data
-        dfIn.loc[:, "psdTotal"] = dfIn[colToPsd].where(dfIn["dtPeak"] < nTotal, 0)
+        dfIn.loc[:, "psdTotal"] = dfIn[colToPsd].where(dfIn["dtPeak"].between(nPrompt_l, nTotal), 0)
 
     # groupby data
     dfGroup = groupDfByFrameAndPdc(dfIn)
 
     # applying PSD on the selected data
     dfIn.loc[:, "psd"] = dfGroup["psdPrompt"].transform("sum")/dfGroup["psdTotal"].transform("sum")
-
+    
+    
+    # Get the list of PDCs in the DataFrame
+    pdcList = getPdcIdxInData(dfIn)
+    df_psd = pd.DataFrame()
+    for iAx, iPdc in enumerate(pdcList):
+        dfPdc = dfIn.loc[dfIn["pdcIdx"] == iPdc, :]
+        dfPdcGroup = dfPdc.groupby("frameIdx")
+        
+        x = dfPdcGroup["energy"].nth(0).values
+        y = dfPdcGroup["psd"].nth(0).values
+        
+        df_psd = pd.concat([df_psd, pd.DataFrame({"Energy [a.u.]": x, "PSD":y, "iPDC":iPdc})], ignore_index=True)
+        
+    
     # remove temporary columns
     dfIn.drop(columns=["psdPrompt", "psdTotal"], errors='ignore', inplace=True)
+
+    return df_psd
 
 
 def plotPsdFctEnergy(dfIn):
@@ -1318,12 +1346,10 @@ def plotPsdFctEnergy(dfIn):
     """
     # verify "getDsumPrelimEnergy" has been run on the DataFrame
     if not {"energy"}.issubset(dfIn.columns):
-        raise KeyError("First call 'getDsumPrelimEnergy' on 'dfIn'"\
-                       "to generate column 'energy'")
+        raise KeyError("First call 'getDsumPrelimEnergy' on 'dfIn' to generate column 'energy'")
     # verify "applyPsd" has been run on the DataFrame
     if not {"psd"}.issubset(dfIn.columns):
-        raise KeyError("First call 'applyPsd' on 'dfIn'"\
-                       "to generate column 'psd'")
+        raise KeyError("First call 'applyPsd' on 'dfIn to generate column 'psd'")
 
     # Get the list of PDCs in the DataFrame
     pdcList = getPdcIdxInData(dfIn)
@@ -1332,7 +1358,6 @@ def plotPsdFctEnergy(dfIn):
     fig, axes = plt.subplots(nrows=len(pdcList), ncols=1, figsize=(12, 9),
                              squeeze=False, sharex=False)
     axes = axes.flatten()
-
 
     for iAx, iPdc in enumerate(pdcList):
         dfPdc = dfIn.loc[dfIn["pdcIdx"] == iPdc, :]
@@ -1352,19 +1377,29 @@ def plotPsdFctEnergy(dfIn):
                                             bins=(xBins, yBins))
 
         # show the histogram
-        axes[iAx].imshow(H.T, cmap="gist_rainbow", origin="lower", aspect="auto",
-                         extent=[xedges[0], xedges[-1], yedges[0], yedges[-1]],
-                         norm=colors.LogNorm(vmin=max(np.min(H), 1e-6), vmax=np.max(H)))
+        df_psd = pd.DataFrame({     "Energy [a.u.]": x, "PSD":y})
+        g = sns.JointGrid(df_psd, x="Energy [a.u.]", y= "PSD", marginal_ticks=True)
+        g.plot_joint(
+            sns.histplot, discrete=(False, False),
+            cmap="gist_rainbow", pmax=.8, cbar=False
+        )
+        g.plot_marginals(sns.histplot, element="step", color="#03012d")
 
+        axes[iAx].imshow(H.T, cmap="gist_rainbow", origin="lower", aspect="auto",
+                        extent=[xedges[0], xedges[-1], yedges[0], yedges[-1]],
+                        norm=colors.LogNorm(vmin=max(np.min(H), 1e-6), vmax=np.max(H)), zorder=0)
         axes[iAx].set_xlabel("energy (number of photons detected)")
         axes[iAx].set_ylabel(f"PDC{iPdc}\nPSD")
+
+    
     plt.tight_layout()
+    return fig, axes
 
 
 # -----------------------------------------------
 # --- Energy Spectrum
 # -----------------------------------------------
-def getDsumEnergy(dfIn, col="dsum", transform="sum"):
+def getDsumEnergy(dfIn, col="dsum", transform="sum", dtype=np.uint16):
     """
     # Calculate the energy based on the selected method (col, transform)
     # NOTE: changes are directly applied to the DataFrame argument "dfIn"
@@ -1386,7 +1421,7 @@ def getDsumEnergy(dfIn, col="dsum", transform="sum"):
     #       call this function, then rename the "energy" column,
     #       then call the function with different parameters.
     """
-    dfIn.loc[:, "energy"] = groupDfByFrameAndPdc(dfIn)[col].transform(transform)
+    dfIn.loc[:, "energy"] = groupDfByFrameAndPdc(dfIn)[col].transform(transform).astype(dtype)
 
 
 def getEnergySpectra(dfIn, combinedFilter=None) -> pd.DataFrame:
@@ -1416,7 +1451,7 @@ def getEnergySpectra(dfIn, combinedFilter=None) -> pd.DataFrame:
             continue
 
         # generate the energy spectrum
-        bins = range(np.min(pdcData), np.max(pdcData))
+        bins = np.arange(np.min(pdcData), np.max(pdcData))
         binCounts, binEdges = np.histogram(pdcData, bins=bins)
         binCenters = (binEdges[1:] + binEdges[:-1])/2.0
         # DataFrame with a single spectrum (one PDC)
@@ -1466,11 +1501,11 @@ def findPhotoPeaks(dfSpectrum, spectrumBinMin=0, spectrumBinMax=-1,
     outputDict = {}
     try:
         # print PDC idx
-        print(f"=== PDC{dfSpectrum["pdcIdx"].unique()[0]} ===")
+        print(f"=== PDC{dfSpectrum['pdcIdx'].unique()[0]} ===")
 
         # extract as two numpy variables
         binCenters = dfSpectrum["binCenters"].values
-        binCounts = dfSpectrum["binCounts"].values.astype(float)
+        binCounts = dfSpectrum["binCounts"].values.astype(np.float32)
 
          # keep noise peak bins in graph, but adjust max based on photopeak
         photoPeak = np.max(binCounts[spectrumBinMin:spectrumBinMax])
@@ -1942,7 +1977,9 @@ if __name__ == "__main__":
         # Here is an example for a scintillator of 4x4 mm² on each PDC of Head 0.
         # In this example, the total number of enabled pixels is 52 x 52, but drops when disabling pixels with
         # TCR above 100 cps.
-        numPixEn = [2431, 2412, 2382, 2376, 0, 0, 0, 0] # scintillator over 52 x 52 pixels, TCR < 100 cps
+        # 3239, 2431, 1525 or 770
+        numPixEn = [1525, 2412, 2382, 2376, 0, 0, 0, 0] # scintillator over 52 x 52 pixels, TCR < 100 cps
+        #numPixEn = [3239, 2412, 2382, 2376, 0, 0, 0, 0] # scintillator over 52 x 52 pixels, TCR < 100 cps
         print(f"number of enabled pixels per PDC (PDC0 to PDCX): {numPixEn}")
 
         # default settings for the hold-off period. It can later be extracted from the measurements.
@@ -2003,7 +2040,7 @@ if __name__ == "__main__":
         # === Applying filters on data to remove noise/unwanted data === #
         # keep only frames in which a bin is higher than threshold
         # NOTE: Here binMaxThGt can be set to match the SUM_TH greater than used for the acquistion
-        keepFramesOverNoise, _ = filterFrameFromMaxBin(dfGroup, binMaxThGt=6)
+        keepFramesOverNoise, _ = filterFrameFromMaxBin(dfGroup, binMaxThGt=10)
         logExecutionTime("filterFrameFromMaxBin()")
 
         # keep only frames on which more than N bins contain data
@@ -2196,6 +2233,17 @@ if __name__ == "__main__":
         getMaxNumberOfPixelTriggered(dfKeep, numPixEn)
         logExecutionTime("getMaxNumberOfPixelTriggered()")
 
+
+        # -----------------------------------------------
+        # --- Filter for hold-off
+        # -----------------------------------------------
+        sectionPrint("Filter data to remove values up to hold-off + margin")
+        filter_peakLen = dfKeep["dtPeak"].between(-1, HOLD_TIME_CLK_CYCLES-5)
+        filterList = [filter_peakLen]
+        combinedFilter = combineFilters(filterList)
+        dfKeep = applyFilters(dfKeep, dfFilter=keepCombined)
+        logExecutionTime("applyFilters()")
+
         # -----------------------------------------------
         # --- Linearity correction
         # -----------------------------------------------
@@ -2209,8 +2257,8 @@ if __name__ == "__main__":
         # -----------------------------------------------
         sectionPrint("Update the energy calculation")
         # these are examples of energy calculation methods
-        getDsumEnergy(dfKeep, col="dsum", transform="sum")
-        #getDsumEnergy(dfKeep, col="dsumLin", transform="sum")
+        #getDsumEnergy(dfKeep, col="dsum", transform="sum")
+        getDsumEnergy(dfKeep, col="dsumLin", transform="sum", dtype=np.float32)
         #getDsumEnergy(dfKeep, col="dsumLevel", transform="max")
         logExecutionTime("getDsumEnergy()")
 
@@ -2218,13 +2266,14 @@ if __name__ == "__main__":
         # --- Pulse shape discrimination
         # -----------------------------------------------
         sectionPrint("Pulse shape discrimination")
-        applyPsd(dfKeep, nPrompt=1, nTotal=-1, colToPsd="dsum")
-        #applyPsd(dfKeep, nPrompt=1, nTotal=-1, colToPsd="dsumLin")
+
+        df_psd = applyPsd(dfKeep, nPrompt_l=0, nPrompt_r=1, nTotal=HOLD_TIME_CLK_CYCLES-5, colToPsd="dsumLin")
+        #df_psd.to_csv(f"{datafile.split('.csv')[0]}_psd.csv")
         logExecutionTime("applyPsd()")
 
         if doPlot:
             # show a plot of the PSD as a function of the energy
-            plotPsdFctEnergy(dfKeep)
+            fig_psd, axes_psd = plotPsdFctEnergy(dfKeep)
 
         # -----------------------------------------------
         # --- Energy Spectrum
@@ -2233,8 +2282,8 @@ if __name__ == "__main__":
         # Examples of filters to apply on data before applying energy analysis
         # keep only frames with only one PDC
         filter_nPdc = dfKeep["nPdcsInFrame"] == 1
-        # for each frame, keep only data that are less than 25 bins from the peak
-        filter_peakLen = dfKeep["dtPeak"] < 25
+        # for each frame, keep only data that are less than the hold-off period in bins from the peak (with margin)
+        filter_peakLen = dfKeep["dtPeak"] < HOLD_TIME_CLK_CYCLES-5
 
         # keep only frames for which the peak is not the first bin
         filter_peakNotFirstBin = dfKeepGroup["dtPeak"].transform("min").lt(0)
