@@ -44,11 +44,11 @@ import scipy
 import seaborn as sns
 
 # custom modules
-from modules.fgColors import fgColors
-from modules.systemHelper import sectionPrint
-import modules.pandasHelper as pdh
-import modules.hexReadCsvParser as hrcp
-import modules.energySpectrumAnalysisHelper as esah
+from pdcv2_modules.fgColors import fgColors
+from pdcv2_modules.systemHelper import sectionPrint
+import pdcv2_modules.pandasHelper as pdh
+import pdcv2_modules.hexReadCsvParser as hrcp
+import pdcv2_modules.energySpectrumAnalysisHelper as esah
 
 
 
@@ -1275,7 +1275,7 @@ def applyDsumLinearity(dfIn) -> tuple:
     N = dfIn.loc[maskLin, "nAvail"].max().astype(np.float32) # Number of SPADs
 
     logTerm = 1-dfIn.loc[maskLin, "dsum"].values/dfIn.loc[maskLin, "nAvail"].values
-    dfIn.loc[maskLin, "dsumLin"] = -N*np.log(logTerm)
+    dfIn.loc[maskLin, "dsumLin"] = -N*np.log(logTerm).astype(np.float32)
 
     # evaluate the number of bins affected by linearity
     maskLin = dfIn["dsum"] != dfIn["dsumLin"]

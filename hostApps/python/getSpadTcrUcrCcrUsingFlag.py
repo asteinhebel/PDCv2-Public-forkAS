@@ -38,17 +38,17 @@ import warnings
 import threading
 
 # custom modules
-from modules.fgColors import fgColors
-from modules.zynqEnvHelper import PROJECT_PATH, HOST_APPS_PATH, USER_DATA_DIR, HDF5_DATA_DIR
-import modules.sshClientHelper as sshClientHelper
-import modules.systemHelper as systemHelper
-from modules.zynqCtlPdcRoutines import initCtlPdcFromClient, packetBank
-from modules.zynqDataTransfer import zynqDataTransfer
-from modules.systemHelper import sectionPrint
-from modules.pdcHelper import *
+from pdcv2_modules.fgColors import fgColors
+from pdcv2_modules.zynqEnvHelper import PROJECT_PATH, HOST_APPS_PATH, USER_DATA_DIR, HDF5_DATA_DIR
+import pdcv2_modules.sshClientHelper as sshClientHelper
+import pdcv2_modules.systemHelper as systemHelper
+from pdcv2_modules.zynqCtlPdcRoutines import initCtlPdcFromClient, packetBank
+from pdcv2_modules.zynqDataTransfer import zynqDataTransfer
+from pdcv2_modules.systemHelper import sectionPrint
+from pdcv2_modules.pdcHelper import *
 #from modules.zynqHelper import *
-from modules.h5Reader import *
-from modules.h5Reader import PDC_ZPP_ITEM as pzi
+from pdcv2_modules.h5Reader import *
+from pdcv2_modules.h5Reader import PDC_ZPP_ITEM as pzi
 
 try:
     scriptName = os.path.basename(__file__)

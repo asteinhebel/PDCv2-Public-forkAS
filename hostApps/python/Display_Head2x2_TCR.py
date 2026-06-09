@@ -23,7 +23,8 @@ from matplotlib.colors import *
 import math
 import matplotlib.lines as mlines
 import argparse
-from modules.pixMap import xy_map
+from pdcv2_modules.pixMap import xy_map
+from matplotlib import colors, cm
 
 
 
@@ -79,11 +80,13 @@ def plot_results_df(df: pd.DataFrame, criteria="SPAD_TCR (cps)", head_id=None):
     for iPDC, df_pdc in df.groupby("iPDC"):
         ax = axes[heatmap_loc[iPDC]]
         ax.set_title(f"PDC{iPDC}")
-        df_pdc = df_pdc[df_pdc[criteria] < 500_000]
+        #df_pdc = df_pdc[df_pdc[criteria] < 500_000]
         df_hm = df_pdc.pivot_table(index='Y', columns='X', values=criteria)
         
-        ax = sns.heatmap(data=df_hm, square=True, clip_on=False, xticklabels=10,yticklabels=10,
-                         robust=False, cmap="viridis", norm=LogNorm(), ax=ax, cbar_kws={"fraction":0.045})
+        #ax = sns.heatmap(data=df_hm, square=True, clip_on=False, xticklabels=10,yticklabels=10,
+        #                 robust=False, cmap="viridis",  ax=ax, cbar_kws={"fraction":0.045}, vmax=math.log10(100_000), norm=LogNorm())
+        im =ax.imshow(df_hm, norm=colors.LogNorm(vmin=df_pdc[criteria].min()+1, vmax=200_000)) # vmax=df_pdc[criteria].max()
+        fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
         ax.invert_yaxis()
 
     items = []
@@ -136,6 +139,7 @@ def csv_to_df(filepath:str):
 
 
     pdcs = [int(k.split("SPAD_idx")[1]) for k in data.keys() if "SPAD_idx" in k]
+    data = data[data[f"SPAD_idx{min(pdcs)}"] < 4096]
     print(data)
 
     df = pd.DataFrame()
@@ -149,7 +153,7 @@ def csv_to_df(filepath:str):
         print(f"PDC{iPDC} has {(df_pdc['SPAD_TCR (cps)'] == 0).sum()} SPADs with no TCR value")
 
 
-    spad_active_area= 42**2-(28**2-math.pi*14**2) #* 1e-6
+    spad_active_area= 42**2-(28**2-math.pi*14**2) #* 1e-6clear
     spad_active_area = 78*78*0.26 * 1e-6
     df["SPAD_TCR (cps/mm2 active)"] = df["SPAD_TCR (cps)"]/spad_active_area
     # SPAD total area in um2 (78um pitch)

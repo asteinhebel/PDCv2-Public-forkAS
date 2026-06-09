@@ -18,9 +18,9 @@ from enum import IntEnum
 from typing import Literal
 
 # custom modules
-from modules.systemHelper import sectionPrint
-from modules.fgColors import fgColors
-import modules.sshClientHelper as sshClientHelper
+from pdcv2_modules.systemHelper import sectionPrint
+from pdcv2_modules.fgColors import fgColors
+import pdcv2_modules.sshClientHelper as sshClientHelper
 
 class packetBank(IntEnum):
     BANKA = 0

@@ -16,7 +16,7 @@ import pandas as pd
 from scipy.signal import find_peaks
 from scipy.optimize import curve_fit
 
-from modules.pandasHelper import *
+from pdcv2_modules.pandasHelper import *
 
 #----------------------------------------------------------------------------------
 # analysis functions

@@ -15,9 +15,9 @@ import os, sys
 from enum import IntEnum
 
 # custom modules
-from modules.fgColors import fgColors
-import modules.systemHelper as systemHelper
-import modules.sshClientHelper as sshClientHelper
+from pdcv2_modules.fgColors import fgColors
+import pdcv2_modules.systemHelper as systemHelper
+import pdcv2_modules.sshClientHelper as sshClientHelper
 #from modules.zynqHelper import *
 
 try:

@@ -20,7 +20,7 @@ from sshconf import read_ssh_config
 from os.path import expanduser
 
 # custom modules
-from modules.fgColors import fgColors
+from pdcv2_modules.fgColors import fgColors
 
 # class to deal with functions
 class sshClient:

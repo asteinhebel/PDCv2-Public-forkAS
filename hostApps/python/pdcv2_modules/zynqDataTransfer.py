@@ -18,10 +18,10 @@ import subprocess
 import glob
 
 # custom modules
-from modules.fgColors import fgColors
-from modules.zynqEnvHelper import PROJECT_PATH, HOST_APPS_PATH, USER_DATA_DIR, HDF5_DATA_DIR
-import modules.sshClientHelper as sshClientHelper
-from modules.systemHelper import sectionPrint, printException
+from pdcv2_modules.fgColors import fgColors
+from pdcv2_modules.zynqEnvHelper import PROJECT_PATH, HOST_APPS_PATH, USER_DATA_DIR, HDF5_DATA_DIR
+import pdcv2_modules.sshClientHelper as sshClientHelper
+from pdcv2_modules.systemHelper import sectionPrint, printException
 
 class zynqDataTransfer:
     def __init__(self, sshClientZynq: sshClientHelper.sshClient):

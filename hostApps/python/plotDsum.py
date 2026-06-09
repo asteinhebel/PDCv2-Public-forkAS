@@ -71,9 +71,9 @@ import matplotlib.backends as backends
 import threading
 
 # custom modules
-from modules.fgColors import fgColors
-from modules.zynqEnvHelper import PROJECT_PATH, HOST_APPS_PATH, USER_DATA_DIR, HDF5_DATA_DIR
-from modules.h5Reader import *
+from pdcv2_modules.fgColors import fgColors
+from pdcv2_modules.zynqEnvHelper import PROJECT_PATH, HOST_APPS_PATH, USER_DATA_DIR, HDF5_DATA_DIR
+from pdcv2_modules.h5Reader import *
 
 try:
     scriptName = os.path.basename(__file__)

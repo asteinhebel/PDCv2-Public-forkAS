@@ -16,7 +16,7 @@ from enum import IntEnum
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 
-import modules.pixMap as pixMap
+import pdcv2_modules.pixMap as pixMap
 
 
 
