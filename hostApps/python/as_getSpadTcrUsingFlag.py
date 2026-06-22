@@ -28,7 +28,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import warnings
 import threading
-import yaml, pyvisa, glob
+import pyvisa, glob
 
 # custom modules
 from modules.fgColors import fgColors
@@ -41,15 +41,6 @@ from modules.zynqDataTransfer import zynqDataTransfer
 from modules.systemHelper import sectionPrint, save_environVars
 from modules.pdcHelper import *
 from modules.h5Reader import *
-
-
-# -----------------------------------------------
-# --- parse configuration values from YAML
-# -----------------------------------------------
-with open('config_all.yaml','r') as f:
-    config_in = yaml.safe_load(f)
-    pdcConfig_in = config_in['pdcConfig']
-    dataConfig_in = config_in['dataConfig']
 
 # -----------------------------------------------
 # --- 
@@ -69,7 +60,6 @@ test_start_time = time.time()
 tp = None
 
 # time to wait for each setting
-#measTime = dataConfig_in['measTime']
 measTime = float(os.environ.get("MEAS_TIME", default=0.2)) # second
 
 # NOTE: user can set hold, recharge and flag time using the following environment variables:
@@ -114,7 +104,6 @@ zynq.init()
 # -----------------------------------------------
 # --- prepare controller for acquisition
 # -----------------------------------------------
-#icp = initCtlPdcFromClient(client=client, sysClkPrd=10e-9, pdcEn=pdcConfig_in['pdcAcq'])
 # NOTE: select the PDC to use:
 #       pdcEn=0x1 -> PDC0
 #       pdcEn=0x2 -> PDC1
@@ -139,7 +128,30 @@ icp.resetCtl()
 # --- configure controller packet
 # -----------------------------------------------
 # NOTE always set SCSA register first to store other configuration registers in HDF5
-icp.setCtlPacket(bank=packetBank.BANKA, SCS=pdcConfig_in['registers']['scsa'], SCD=pdcConfig_in['registers']['scda'], SPD=pdcConfig_in['registers']['spda'])
+# configure CFG_STATUS_A
+    # 0x8000 = PDC_CFG
+    # 0x4000 = CTL_CFG
+    # 0x2000 = PDC_STATUS
+    # 0x1000 = PDC_STATUS_ALL
+    # 0x0007 = ALL CTL_STATUS
+SCSA = 0x0000
+# configure CTL_DATA_A
+    # 0x0001 = GBL_CTL_TDC
+SCDA = 0x0000
+# configure PDC_DATA_A
+    # 0x0100 = DSUM
+    # 0x00F7 = ZPP
+if os.getenv("DATA_TYPE", default="DSUM") is None:
+    print(f"{fgColors.bYellow}'DATA_TYPE' not recognized - must be DSUM or ZPP.{fgColors.endc}")
+    sys.exit()
+elif os.getenv("DATA_TYPE") == "DSUM":
+    SPDA = 0x0100
+elif os.getenv("DATA_TYPE") == "ZPP":
+    SPDA = 0x00F7
+else:
+    print(f"{fgColors.bYellow}'DATA_TYPE' not recognized - must be DSUM or ZPP.{fgColors.endc}")
+    sys.exit()
+icp.setCtlPacket(bank=packetBank.BANKA, SCS=SCSA, SCD=SCDA, SPD=SPDA)
 
 # -----------------------------------------------
 # --- set delay of CFG_DATA pins
@@ -192,7 +204,6 @@ PDC_SETTING.PIXL = PIXL
 
 # === TIME REGISTER ===
 print("\n=== TIME REGISTER ===")
-#vals=client.runPrint(f"pdcTime --hold {pdcConfig_in['registers']['hold_time']} --rech {pdcConfig_in['registers']['recharge_time']} --flag {pdcConfig_in['registers']['flag_time']} -g", returnLines=True)
 HOLD_TIME = float(os.environ.get("HOLD_TIME_NS", default=150.0))
 RECH_TIME = float(os.environ.get("RECH_TIME_NS", default=10.0))
 FLAG_TIME = float(os.environ.get("FLAG_TIME_NS", default=10.0))
@@ -417,7 +428,7 @@ client.run(f"ctlCfg -a FSMM -r 0x0101 -g"); # triggered by a COMMAND
 # --- Class to generate the display of the results
 # --------------------------------------------------
 class tcrPlotter:
-    def __init__(self, figName, nPdcMax, nSpad, doSavePlot=False, doSaveGif=False, dataPath="default", saveFinalPlot=False):
+    def __init__(self, figName, nPdcMax, nSpad, doSavePlot=False, doSaveGif=False, dataPath="default"):
 
         """
         create an empty object with no data, but with figure properly formatted
@@ -455,12 +466,11 @@ class tcrPlotter:
         self.dataFileName = ""
         self.doSavePlot = doSavePlot
         self.doSaveGif = doSaveGif
-        self.saveFinalPlot=saveFinalPlot
 
         self.plotIdx = 0
         self.fig = None
         self.dateStrPlot = datetime.datetime.now().strftime("%Y%m%d_%Hh%Mm%S")
-        self.name = "_"+dataConfig_in['name'] if len(dataConfig_in['name'])>0 else "" #AS - likely unnecessary now
+        self.name = "_"+os.getenv("FNAME") if os.getenv("FNAME") is not None else ""
         self.saveTime = None
 
         # path to save CSV data
@@ -471,9 +481,6 @@ class tcrPlotter:
             self.dataPath = os.path.join(USER_DATA_DIR, 'TCR')
         # add script name to path
         self.dataPath = Path(os.path.join(self.dataPath, os.path.splitext(scriptName)[0]))
-
-        # path to save plots 
-        #self.plotPath = Path(os.path.join(self.dataPath, 'FIG')) if self.saveFinalPlot else Path(os.path.join(self.dataPath, 'FIG', self.dateStrPlot)) 
 
         # path to save plot
         self.plotPath = Path(os.path.join(self.dataPath, 'PNG'))
@@ -576,7 +583,7 @@ class tcrPlotter:
         self.axes.flat[self.axTcr].legend()
         self.axes.flat[self.axPop].legend(loc="upper left", title=f"{'': <26} {'avg': <14} {'med': <14}")
 
-    def updatePlot(self, iPdc=None, final:bool=False):
+    def updatePlot(self, iPdc=None):
         """
         set new data on the plot without stealing the focus
         """
@@ -625,7 +632,8 @@ class tcrPlotter:
 
         self.updateLegend()
         self.pausePlot(pauseTime=0.001)
-        self.savePlot(iPdc=iPdc, final=False)
+        if self.doSavePlot:
+            self.savePlot(iPdc=iPdc)
         if self.doSaveGif:
             # save a picture at each update to generate a gif
             self.savePlot(iPdc=iPdc, doSaveGif=True)
@@ -789,16 +797,14 @@ class tcrPlotter:
             print(f"{fgColors.green}Saving data to file {datafile}{fgColors.endc}")
             df.to_csv(datafile, sep=';', index=False, float_format="%.3E")
 
-    def savePlot(self, iPdc=None, doSaveGif=False, final:bool=False):
+    def savePlot(self, iPdc=None, doSaveGif=False):
         """
         save plot to a png file
         """
-        if (self.fig and self.doSavePlot) or (self.fig and self.saveFinalPlot and final):
+        #if (self.fig and self.doSavePlot) :
+        if (self.fig):
             if iPdc == None or self.pdcValid[iPdc]:
-                if self.saveFinalPlot:
-                    filename = f"TCR_{self.saveTime}{self.name}.png"
-                else:
-                    filename = f"TCR_{self.plotIdx:06d}{self.name}.png"
+                filename = f"TCR_{self.plotIdx:06d}{self.name}.png"
                 self.plotPath.mkdir(parents=True, exist_ok=True)
                 datafile = os.path.join(self.plotPath, filename)
                 print(f"{fgColors.green}Saving plot to file {datafile}{fgColors.endc}")
@@ -1000,20 +1006,17 @@ def test_all_pixels(tp: tcrPlotter, update=False, numPdc=icp.nPdcMax):
 # ---------------------------------------
 sectionPrint("Script main execution")
 #define variable for testing
-nPdcTest = 1 if pdcConfig_in['pdcAcq']<10 else 4 #icp.nPdcMax
 try:
     # ---------------------------------------
     # --- Object to hold the plots
     # ---------------------------------------
     # doSavePlot will save the plot at each measure.
-    # saveFinalPlot will save only the last, cumulative plot
     # It will then increase the test time.
     # Use it only to generate a .gif of the measures
     tp = tcrPlotter(figName="TCR PLOTTER",
-                    nPdcMax=nPdcTest,
+                    nPdcMax=icp.nPdcMax,
                     nSpad=icp.nSpad,
-                    doSavePlot=os.environ.get("SAVE_PLOT", default=False),
-                    saveFinalPlot=dataConfig_in['savePlot'])
+                    doSavePlot=False)
 
     # ---------------------------------------
     # --- SPAD count rate logic
@@ -1031,16 +1034,17 @@ try:
         # update a last time
         tp.updatePlot()
     else:
-        test_all_pixels(tp=tp, update=True, numPdc=nPdcTest)
+        test_all_pixels(tp=tp, update=True, numPdc=icp.nPdcMax)
 
     # save plot if enabled by user
-    tp.savePlot()
+    if os.environ.get("SAVE_PLOT", default=False):
+        tp.savePlot()
 
     # 2- estimate the TCR of the array with all pixels enabled
     sectionPrint("Estimate the TCR of the array (all pixels)")
     # NOTE: This estimation does not consider that the TCR is obtained with the flag.
     #       If the SPADs TCR is too high, the flag will underestimate the TCR (pixels overlap)
-    for iPdc in range(0, nPdcTest):
+    for iPdc in range(0, icp.nPdcMax):
         if tp.pdcValid[iPdc]:
             nSpad = tp.countValidSpads(iPdc)
             print(f"  PDC {iPdc} total TCR = {tp.pdcTcrAll[iPdc]: <8} " \
@@ -1057,16 +1061,15 @@ try:
         medianToMin=4
 
     # store all tested threshold methods to later select the one to use
-    #thresholdList = [[0]*nPdcTest for _ in range(0, len(ScreamerMethod))]
     thresholdList = np.zeros((len(ScreamerMethod), icp.nPdcMax))
 
-    for iPdc in range(0, nPdcTest):
+    for iPdc in range(0, icp.nPdcMax):
         if not tp.pdcValid[iPdc]:
             continue
 
         # enable/disable the pixels based on a fixed threshold
         # NOTE: change threshold to be more or less selective
-        thresholdList[ScreamerMethod.threshold][iPdc] = 400
+        thresholdList[ScreamerMethod.threshold][iPdc] = float(os.environ.get("SCREAMER_THRESHOLD", default=400))
         nSpadEnabled, spadEnabled = \
             tp.getSpadEnFromThreshold(  iPdc,
                                         threshold=thresholdList[ScreamerMethod.threshold][iPdc],
@@ -1081,7 +1084,7 @@ try:
 
         # enable/disable the pixels based on the percentage of the population
         # NOTE: change threshold to be more or less selective
-        percent = 90
+        percent = float(os.environ.get("SCREAMER_PERCENT", default=90))
         thresholdList[ScreamerMethod.percent][iPdc] = tp.getClosestPctPop(iPdc, percent=percent)
         nSpadEnabled, spadEnabled = \
             tp.getSpadEnFromThreshold(  iPdc,
@@ -1090,7 +1093,7 @@ try:
 
         # enable/disable the pixels based on a factor to the median
         # NOTE: change factor to be more or less selective
-        factor = 1.5
+        factor = float(os.environ.get("SCREAMER_FACTOR", default=1.5))
         thresholdList[ScreamerMethod.medianFactor][iPdc] = tp.getSpadMedTcr(iPdc)*factor
         nSpadEnabled, spadEnabled = \
             tp.getSpadEnFromThreshold(  iPdc,
@@ -1110,17 +1113,17 @@ try:
 
     # 4- estimate the TCR of the array with the screamers pixels disabled
     sectionPrint("Estimate the TCR of the array (no screamers)")
+    screamer_method = os.environ.get("SCREAMER_METHOD", default="percent")
     
-    if dataConfig_in['screamerMethod'] not in ['threshold', 'average', 'percent', 'medianFactor', 'medianToMin']:
-        print(f"Screamer method {dataConfig_in['screamerMethod']} is not valid. Defaulting to: percent")
-        dataConfig_in['screamerMethod'] = 'percent'
+    if screamer_method not in ['threshold', 'average', 'percent', 'medianFactor', 'medianToMin']:
+        print(f"Screamer method '{screamer_method}' is not valid. Defaulting to: percent")
+        screamer_method = 'percent'
 
-    #method = ScreamerMethod.percent
-    method = getattr(ScreamerMethod, dataConfig_in['screamerMethod'])
+    method = getattr(ScreamerMethod, screamer_method)
     print(f"selected method is {method.name}")
 
     # estimate the TCR using the given parameters
-    for iPdc in range(0, nPdcTest):
+    for iPdc in range(0, icp.nPdcMax):
         if not tp.pdcValid[iPdc]:
             continue
         threshold = thresholdList[method][iPdc]
@@ -1144,7 +1147,7 @@ try:
 
     # 5- enable the selected SPADs
     sectionPrint("Enable the selected SPADs")
-    for iPdc in range(0, nPdcTest):
+    for iPdc in range(0, icp.nPdcMax):
         if not tp.pdcValid[iPdc]:
             continue
         # enable only the selected SPADs and print command (to copy to another script)
