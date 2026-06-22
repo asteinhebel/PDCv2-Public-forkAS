@@ -82,8 +82,8 @@ if os.getenv("HEAD_ID") is not None:
 #radSource = "Am241"
 #radSource = "xray"
 #radSource = "background"
-if os.getenv("RAD_SOURCE") is not None:
-    radSource = os.getenv('RAD_SOURCE')
+if os.getenv("RAD_SOURCE_NAME") is not None:
+    radSource = os.getenv('RAD_SOURCE_NAME')
 else:
     radSource = ""
 print(f"Radiation source: {radSource}")
@@ -661,7 +661,7 @@ for iPdc in range(icp.nPdcMax):
             # supported methods: constant, average, percent, medianFactor, medianToMin
             # Here, keeping only SPADs with TCR below 100 cps (thConst)
             constant_threshold = float(os.getenv("SCREAMER_THRESHOLD")) if os.getenv("SCREAMER_THRESHOLD") is not None else 100.0
-            #constant_threshold = 200.0
+            plotVal = CSV_DATA_DIR+f"/pixelMap_{iPdc}.png" if strToBool(os.getenv("SAVE_PLOT")) else ""
             regs = pdcSpadFunctions.convertPixArrayToReg(
                         pixArray=dfTcr[f"SPAD_TCR{iPdc}"],
                         thMethod=pdcSpadFunctions.ThreshMethod.constant,
@@ -669,11 +669,11 @@ for iPdc in range(icp.nPdcMax):
                         thOp=pdcSpadFunctions.ThreshOp.le,
                         pixEnMask = pixEnMask,
                         returnAnalysis=False,
-                        log=False,  # set log to True to print the values of the registers to program
-                        plot=strToBool(os.getenv("SAVE_PLOT"))) # set plot to True to show the map of the enabled pixels
-
+                        log=False,  # set log to True to print the values of the registers to program 
+                        plot=plotVal
+                        )
             # set plotMask to True to see the pixel mask (pixEnMask) not considering the TCR
-            plotMask = False
+            plotMask = False 
             if plotMask:
                 # Create a custom colormap from green to red
                 # You can define the colors at specific points along the colormap
@@ -682,7 +682,7 @@ for iPdc in range(icp.nPdcMax):
                 plt.ion()
                 plt.figure()
                 plt.imshow(pixEnMask.T, cmap=cmap, origin='lower', aspect="equal")
-                plt.show()
+                #plt.show()
 
             # enable the proper SPADs
             icp.cfgAllPixRegs(regs, iPdc)
@@ -907,7 +907,10 @@ test_start_time = time.time()
 print("\n=== READY TO OPERATE ===")
 # NOTE: Implement here a specific routine
 try:
-    input("Press [enter] key to exit")
+    #input("Press [enter] key to exit")
+    measurementTime = float(os.getenv("MEAS_TIME", default=30))
+    print(f"Measuring for {measurementTime}s")
+    time.sleep(measurementTime)
 except KeyboardInterrupt:
     print("\nKeyboard Interrupt: exit program")
 
@@ -944,11 +947,13 @@ finally:
     test_duration_sec = test_stop_time-test_start_time
     print(f"{fgColors.bBlue}Test duration:\n  {test_duration_sec:.3f} seconds \n  {test_duration_sec/60:.3f} min \n  {test_duration_sec/3600:.3f} hours{fgColors.endc}")
     # WARNING remove empty file at the end of the execution
+    print("dsumCsvFile" in locals(),  os.path.exists(dsumCsvFile), os.path.getsize(dsumCsvFile) == 0)
     if "dsumCsvFile" in locals() and os.path.exists(dsumCsvFile) and os.path.getsize(dsumCsvFile) == 0:
         os.remove(dsumCsvFile)
         if "pixelStatsFileName" in locals() and os.path.exists(pixelStatsFileName):
             # remove pixel stats if file dsumCsvFile is empty
             os.remove(pixelStatsFileName)
+            
     sys.exit()
 
 
