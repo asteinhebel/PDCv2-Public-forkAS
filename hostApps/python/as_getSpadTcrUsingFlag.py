@@ -145,7 +145,8 @@ if os.getenv("DATA_TYPE", default="DSUM") is None:
     print(f"{fgColors.bYellow}'DATA_TYPE' not recognized - must be DSUM or ZPP.{fgColors.endc}")
     sys.exit()
 elif os.getenv("DATA_TYPE") == "DSUM":
-    SPDA = 0x0100
+    print(f"{fgColors.bYellow}'DATA_TYPE'='DSUM'. Do you really mean this? Changing to ZPP. {fgColors.endc}")
+    SPDA = 0x00F7
 elif os.getenv("DATA_TYPE") == "ZPP":
     SPDA = 0x00F7
 else:
