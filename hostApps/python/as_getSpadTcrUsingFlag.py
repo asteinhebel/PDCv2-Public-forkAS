@@ -29,6 +29,7 @@ import matplotlib.ticker as mticker
 import warnings
 import threading
 import pyvisa, glob
+import pyvisa, glob
 
 # custom modules
 from modules.fgColors import fgColors
@@ -141,11 +142,22 @@ icp.resetCtl()
     # 0x0007 = ALL CTL_STATUS
 SCSA = 0x0000
 # configure CTL_DATA_A
+    # 0x0001 = GBL_CTL_TDC
 SCDA = 0x0000
 # configure PDC_DATA_A
     # 0x0100 = DSUM
     # 0x00F7 = ZPP
-SPDA = 0x00F7
+if os.getenv("DATA_TYPE", default="DSUM") is None:
+    print(f"{fgColors.bYellow}'DATA_TYPE' not recognized - must be DSUM or ZPP.{fgColors.endc}")
+    sys.exit()
+elif os.getenv("DATA_TYPE") == "DSUM":
+    print(f"{fgColors.bYellow}'DATA_TYPE'='DSUM'. Do you really mean this? Changing to ZPP. {fgColors.endc}")
+    SPDA = 0x00F7
+elif os.getenv("DATA_TYPE") == "ZPP":
+    SPDA = 0x00F7
+else:
+    print(f"{fgColors.bYellow}'DATA_TYPE' not recognized - must be DSUM or ZPP.{fgColors.endc}")
+    sys.exit()
 icp.setCtlPacket(bank=packetBank.BANKA, SCS=SCSA, SCD=SCDA, SPD=SPDA)
 
 # -----------------------------------------------
@@ -465,7 +477,7 @@ class tcrPlotter:
         self.plotIdx = 0
         self.fig = None
         self.dateStrPlot = datetime.datetime.now().strftime("%Y%m%d_%Hh%Mm%S")
-        self.name = "_"+nameStr if len(nameStr)>0 else "" #AS - likely unnecessary now
+        self.name = "_"+os.getenv("FNAME") if os.getenv("FNAME") is not None else ""
         self.saveTime = None
 
         # path to save CSV data
@@ -627,7 +639,8 @@ class tcrPlotter:
 
         self.updateLegend()
         self.pausePlot(pauseTime=0.001)
-        self.savePlot(iPdc=iPdc)
+        if self.doSavePlot:
+            self.savePlot(iPdc=iPdc)
         if self.doSaveGif:
             # save a picture at each update to generate a gif
             self.savePlot(iPdc=iPdc, doSaveGif=True)
@@ -795,7 +808,8 @@ class tcrPlotter:
         """
         save plot to a png file
         """
-        if (self.fig and self.doSavePlot):
+        #if (self.fig and self.doSavePlot) :
+        if (self.fig):
             if iPdc == None or self.pdcValid[iPdc]:
                 filename = f"TCR_{self.plotIdx:06d}{self.name}.png"
                 self.plotPath.mkdir(parents=True, exist_ok=True)
@@ -999,7 +1013,6 @@ def test_all_pixels(tp: tcrPlotter, update=False, numPdc=icp.nPdcMax):
 # ---------------------------------------
 sectionPrint("Script main execution")
 #define variable for testing
-nPdcTest = 1 if pdcEn<10 else 4 #icp.nPdcMax
 try:
     # ---------------------------------------
     # --- Object to hold the plots
@@ -1008,10 +1021,9 @@ try:
     # It will then increase the test time.
     # Use it only to generate a .gif of the measures
     tp = tcrPlotter(figName="TCR PLOTTER",
-                    nPdcMax=nPdcTest,
+                    nPdcMax=icp.nPdcMax,
                     nSpad=icp.nSpad,
-                    doSavePlot=os.environ.get("SAVE_PLOT", default=False)
-                    )
+                    doSavePlot=False)
 
     # ---------------------------------------
     # --- SPAD count rate logic
@@ -1029,16 +1041,17 @@ try:
         # update a last time
         tp.updatePlot()
     else:
-        test_all_pixels(tp=tp, update=True, numPdc=nPdcTest)
+        test_all_pixels(tp=tp, update=True, numPdc=icp.nPdcMax)
 
     # save plot if enabled by user
-    tp.savePlot()
+    if os.environ.get("SAVE_PLOT", default=False):
+        tp.savePlot()
 
     # 2- estimate the TCR of the array with all pixels enabled
     sectionPrint("Estimate the TCR of the array (all pixels)")
     # NOTE: This estimation does not consider that the TCR is obtained with the flag.
     #       If the SPADs TCR is too high, the flag will underestimate the TCR (pixels overlap)
-    for iPdc in range(0, nPdcTest):
+    for iPdc in range(0, icp.nPdcMax):
         if tp.pdcValid[iPdc]:
             nSpad = tp.countValidSpads(iPdc)
             print(f"  PDC {iPdc} total TCR = {tp.pdcTcrAll[iPdc]: <8} " \
@@ -1057,13 +1070,13 @@ try:
     # store all tested threshold methods to later select the one to use
     thresholdList = np.zeros((len(ScreamerMethod), icp.nPdcMax))
 
-    for iPdc in range(0, nPdcTest):
+    for iPdc in range(0, icp.nPdcMax):
         if not tp.pdcValid[iPdc]:
             continue
 
         # enable/disable the pixels based on a fixed threshold
         # NOTE: change threshold to be more or less selective
-        thresholdList[ScreamerMethod.threshold][iPdc] = 400
+        thresholdList[ScreamerMethod.threshold][iPdc] = float(os.environ.get("SCREAMER_THRESHOLD", default=400))
         nSpadEnabled, spadEnabled = \
             tp.getSpadEnFromThreshold(  iPdc,
                                         threshold=thresholdList[ScreamerMethod.threshold][iPdc],
@@ -1078,7 +1091,7 @@ try:
 
         # enable/disable the pixels based on the percentage of the population
         # NOTE: change threshold to be more or less selective
-        percent = 90
+        percent = float(os.environ.get("SCREAMER_PERCENT", default=90))
         thresholdList[ScreamerMethod.percent][iPdc] = tp.getClosestPctPop(iPdc, percent=percent)
         nSpadEnabled, spadEnabled = \
             tp.getSpadEnFromThreshold(  iPdc,
@@ -1087,7 +1100,7 @@ try:
 
         # enable/disable the pixels based on a factor to the median
         # NOTE: change factor to be more or less selective
-        factor = 1.5
+        factor = float(os.environ.get("SCREAMER_FACTOR", default=1.5))
         thresholdList[ScreamerMethod.medianFactor][iPdc] = tp.getSpadMedTcr(iPdc)*factor
         nSpadEnabled, spadEnabled = \
             tp.getSpadEnFromThreshold(  iPdc,
@@ -1107,19 +1120,17 @@ try:
 
     # 4- estimate the TCR of the array with the screamers pixels disabled
     sectionPrint("Estimate the TCR of the array (no screamers)")
+    screamer_method = os.environ.get("SCREAMER_METHOD", default="percent")
     
-    screamerMethodIn = os.environ.get('SCREAMER_METHOD', default="percent")
+    if screamer_method not in ['threshold', 'average', 'percent', 'medianFactor', 'medianToMin']:
+        print(f"Screamer method '{screamer_method}' is not valid. Defaulting to: percent")
+        screamer_method = 'percent'
 
-    if screamerMethodIn not in ['threshold', 'average', 'percent', 'medianFactor', 'medianToMin']:
-        print(f"Screamer method {screamerMethodIn} is not valid. Defaulting to: percent")
-        screamerMethodIn = 'percent'
-
-    #method = ScreamerMethod.percent
-    method = getattr(ScreamerMethod, screamerMethodIn)
+    method = getattr(ScreamerMethod, screamer_method)
     print(f"selected method is {method.name}")
 
     # estimate the TCR using the given parameters
-    for iPdc in range(0, nPdcTest):
+    for iPdc in range(0, icp.nPdcMax):
         if not tp.pdcValid[iPdc]:
             continue
         threshold = thresholdList[method][iPdc]
@@ -1143,7 +1154,7 @@ try:
 
     # 5- enable the selected SPADs
     sectionPrint("Enable the selected SPADs")
-    for iPdc in range(0, nPdcTest):
+    for iPdc in range(0, icp.nPdcMax):
         if not tp.pdcValid[iPdc]:
             continue
         # enable only the selected SPADs and print command (to copy to another script)

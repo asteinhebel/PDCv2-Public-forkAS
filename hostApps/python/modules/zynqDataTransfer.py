@@ -81,7 +81,9 @@ class zynqDataTransfer:
                 #os.popen(f"kill {PID}")
                 # to kill only if process is still active
                 try:
-                    os.popen(f"pgrep {self.hexAppName} | grep {self.hexAppPidLocal} | xargs -I {{}} kill {{}}")
+                    cmd=f"pgrep {self.hexAppName} | grep {self.hexAppPidLocal} | xargs -i {{}} kill {{}}".split(" ")
+                    subprocess.Popen(cmd)
+
                 except ImportError as e: # Python was shutting when this was called
                     pass
 

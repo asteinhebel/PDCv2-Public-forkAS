@@ -88,7 +88,7 @@ def convertPixArrayToReg(
                             thPct: float = -1.0,       # only used with ThreshMethod.percent
                             thMedFactor: float = -1.0, # only used with ThreshMethod.medianFactor
                             pixEnMask = None,          # mask to apply to the pixel enable
-                            plot = False,              # show a plot of the pixels to enable
+                            plot = "",              # show a plot of the pixels to enable
                             log = False,               # print the registers when set to True
                             returnAnalysis = False     # return the analysis class
                         ) -> np.array:
@@ -162,7 +162,7 @@ def convertPixArrayToReg(
     pixAnalysis.numPixToEnable = (pixToEnable == True).sum()
     print(f"Enabling {pixAnalysis.numPixToEnable} pixels ({100.0*pixAnalysis.pctEnabled:>3.2f} %)")
 
-    if plot:
+    if plot!="":
         # Create a custom colormap from green to red
         # You can define the colors at specific points along the colormap
         colors = [(0, 'black'), (1, 'white')]
@@ -170,8 +170,9 @@ def convertPixArrayToReg(
         plt.ion()
         plt.figure()
         plt.imshow(pixMap.vect2xymap(pixToEnable).T, cmap=cmap, origin='lower', aspect="equal")
-        plt.show()
-
+        #plt.show()
+        plt.savefig(plot)
+        plt.close()
 
     # calculate the total and average value per pixel
     pixAnalysis.totalAllPix = 0
