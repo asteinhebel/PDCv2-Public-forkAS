@@ -143,7 +143,7 @@ SCDA = 0x0000
     # 0x00F7 = ZPP
 if os.getenv("DATA_TYPE", default="DSUM") is None:
     print(f"{fgColors.bYellow}'DATA_TYPE' not recognized - must be DSUM or ZPP.{fgColors.endc}")
-    sys.exit()
+    raise SystemExit
 elif os.getenv("DATA_TYPE") == "DSUM":
     print(f"{fgColors.bYellow}'DATA_TYPE'='DSUM'. Do you really mean this? Changing to ZPP. {fgColors.endc}")
     SPDA = 0x00F7
@@ -151,7 +151,7 @@ elif os.getenv("DATA_TYPE") == "ZPP":
     SPDA = 0x00F7
 else:
     print(f"{fgColors.bYellow}'DATA_TYPE' not recognized - must be DSUM or ZPP.{fgColors.endc}")
-    sys.exit()
+    raise SystemExit
 icp.setCtlPacket(bank=packetBank.BANKA, SCS=SCSA, SCD=SCDA, SPD=SPDA)
 
 # -----------------------------------------------
@@ -327,7 +327,7 @@ def checkSystHealth(healthbytes):
         return
     else:
         print(f"Failed system health: {healthbytes}")
-        sys.exit()
+        raise SystemExit
 
 ###Identify supplies
 rm = pyvisa.ResourceManager('@py')
@@ -386,6 +386,34 @@ inst_dcps.write("VOLT:PROT 25.5")
 # ---------------------------------------
 # --- Notify user of manual steps
 # ---------------------------------------
+
+def powerRampDown():
+    # ORNL SPECIFIC - turn off power 
+    print("Turn off power supplies")
+    print("Keysight ramping down....")
+    for vDown in range(25,-1,-1):
+        time.sleep(0.5)
+        inst_dcps.write(f"APPL {float(vDown)}, 0.1")
+    print("Keysight HV is turned off")
+
+    print(f"Run over - turn off Keysight output")
+    inst_dcps.write("APPL 0.0, 0.0")
+    inst_dcps.write("OUTP OFF")
+    inst_dcps.close()
+    print("BK ramping down....")
+    for vDown in range(250,-1,-10):
+        time.sleep(0.5)
+        inst_bkps.write(f"SOUR:VOLT {float(vDown)}")
+    print("BK HV is turned off")
+
+    print(f"Run over - turn off BK output")
+    inst_bkps.write("SOUR:VOLT 0.0")
+    inst_bkps.write("OUT OFF")
+    inst_bkps.write("PROT:OCP OFF")
+    inst_bkps.write("PROT:OVP OFF")
+    inst_bkps.close()
+    return
+
 try:
     print(f"{fgColors.bYellow}Apply HV here{fgColors.endc}")
     if os.environ.get("BATCH_MODE") is None:
@@ -418,6 +446,7 @@ try:
         input("Press [enter] key to continue")
 except KeyboardInterrupt:
     print("\nKeyboard Interrupt: exit program")
+    powerRampDown()
     sys.exit()
 
 # ------------------------------------------------
@@ -792,7 +821,7 @@ class tcrPlotter:
         if df.size > 0:
             # if there are data to export
             #filename = f"{dateStr}_TCR_{pdcStr}_{int(measTime*1000):d}ms{self.name}.csv"
-            filename = f"{self.getFileName()}{pdcStr}.csv"
+            filename = f"{self.getFileName()}{pdcStr}{self.name}.csv"
             self.dataPath.mkdir(parents=True, exist_ok=True)
             datafile = os.path.join(self.dataPath, filename)
             print(f"{fgColors.green}Saving data to file {datafile}{fgColors.endc}")
@@ -817,7 +846,7 @@ class tcrPlotter:
                         pdcStr+=f"_PDC{iPdc}"
             else:
                 pdcStr=f"_PDC{iPdc}"
-            filename = f"{self.getFileName()}{pdcStr}_{self.plotIdx:06d}.png"
+            filename = f"{self.getFileName()}{pdcStr}_{self.plotIdx:06d}{self.name}.png"
             self.plotPath.mkdir(parents=True, exist_ok=True)
             if doSaveGif:
                 datafile = os.path.join(self.plotPathGif, filename)
@@ -1193,37 +1222,38 @@ except (KeyboardInterrupt, SystemExit) as ex:
         print(f"\n{fgColors.yellow}Program interrupted: exit program{fgColors.endc}")
 
 finally:
-    # ORNL SPECIFIC - turn off power 
-    print("Turn off power supplies")
-    print("Keysight ramping down....")
-    for vDown in range(25,-1,-1):
-        time.sleep(0.5)
-        inst_dcps.write(f"APPL {float(vDown)}, 0.1")
-    print("Keysight HV is turned off")
-
-    print(f"Run over - turn off Keysight output")
-    inst_dcps.write("APPL 0.0, 0.0")
-    inst_dcps.write("OUTP OFF")
-    inst_dcps.close()
-    print("BK ramping down....")
-    for vDown in range(250,-1,-10):
-        time.sleep(0.5)
-        inst_bkps.write(f"SOUR:VOLT {float(vDown)}")
-    print("BK HV is turned off")
-
-    print(f"Run over - turn off BK output")
-    inst_bkps.write("SOUR:VOLT 0.0")
-    inst_bkps.write("OUT OFF")
-    inst_bkps.write("PROT:OCP OFF")
-    inst_bkps.write("PROT:OVP OFF")
-    inst_bkps.close()
+    powerRampDown()
+    """# ORNL SPECIFIC - turn off power 
+                print("Turn off power supplies")
+                print("Keysight ramping down....")
+                for vDown in range(25,-1,-1):
+                    time.sleep(0.5)
+                    inst_dcps.write(f"APPL {float(vDown)}, 0.1")
+                print("Keysight HV is turned off")
+            
+                print(f"Run over - turn off Keysight output")
+                inst_dcps.write("APPL 0.0, 0.0")
+                inst_dcps.write("OUTP OFF")
+                inst_dcps.close()
+                print("BK ramping down....")
+                for vDown in range(250,-1,-10):
+                    time.sleep(0.5)
+                    inst_bkps.write(f"SOUR:VOLT {float(vDown)}")
+                print("BK HV is turned off")
+            
+                print(f"Run over - turn off BK output")
+                inst_bkps.write("SOUR:VOLT 0.0")
+                inst_bkps.write("OUT OFF")
+                inst_bkps.write("PROT:OCP OFF")
+                inst_bkps.write("PROT:OVP OFF")
+                inst_bkps.close()"""
 
     # -----------------------------------------------
     # --- save config values
     # -----------------------------------------------
     sectionPrint("Save configuration values")
     # print both to terminal and a file the environment variables
-    configFileName = str(tp.dataPath)+"/config.txt" #AS - will overwrite, need to update
+    configFileName = str(tp.dataPath)+str(f"/{tp.getFileName()}{tp.name}")+"_config.txt" 
     configStatsFile = open(configFileName, 'w')
     defaultStdout = sys.stdout
     sys.stdout = systemHelper.Tee(defaultStdout, configStatsFile)
