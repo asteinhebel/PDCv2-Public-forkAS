@@ -1,5 +1,6 @@
 import os
 import time
+from modules.pdcHelper import *
 
 class Descriptor():
     def __init__(self, typeIn:type):
@@ -34,6 +35,9 @@ class setupValues:
     headId = Descriptor(float)
     headIdStr = Descriptor(str)
     fname = Descriptor(str)
+    pdcEn = Descriptor(int)
+    sysClkPrd = Descriptor(float)
+    nspad = Descriptor(int)
 
 def setBias(setupObj):
     # NOTE: set environment variable SPAD_BIAS_V to store it in data file name
@@ -74,3 +78,6 @@ def setName(setupObj, pathIn):
 
     # get the total execution time of the test
     setupObj.startTime = time.time()
+
+def createPDCSetting(setupObj):
+    setupObj.pdcSetting = pdc_setting()
