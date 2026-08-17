@@ -3,7 +3,7 @@
 from runModules.codeSetup import *
 from runModules.zynqSetup import *
 from runModules.icpSetup import *
-#from runModules.hvSetup import * # AS - TEST IN LAB
+from runModules.hvSetup import * 
 from modules.systemHelper import sectionPrint
 
 # -----------------------------------------------
@@ -30,32 +30,32 @@ setattr(setupObj, "fname", str(os.environ.get("FNAME")))
 # -----------------------------------------------
 sectionPrint("open a connection with the ZCU102 board")
 openZynqConnection(setupObj)
+
 # -----------------------------------------------
 # --- prepare Zynq platform
 # -----------------------------------------------
 sectionPrint("prepare Zynq platform")
 prepZynq(setupObj)
+
 # -----------------------------------------------
 # --- prepare controller for acquisition
 # -----------------------------------------------
 setPDCController(setupObj)
 
-
 # -----------------------------------------------
 # --- set system clock period
 # -----------------------------------------------
-#setSysClkPrd(setupObj.icp) # AS - TEST IN LAB
+setSysClkPrd(setupObj.icp) 
+
 # -----------------------------------------------
 # --- reset of the controller
 # -----------------------------------------------
-#resetZynq(setupObj.icp) # AS - TEST IN LAB
-
+resetController(setupObj.icp) 
 
 # -----------------------------------------------
 # --- configure controller packet
 # -----------------------------------------------
-configControllerPacket(setupObj.icp)
-
+configControllerPacket(setupObj.icp) #add option for ZPP or DSUM
 
 # -----------------------------------------------
 # --- set delay of CFG_DATA pins
@@ -69,7 +69,7 @@ configControllerPacket(setupObj.icp)
 # -----------------------------------------------
 # --- prepare PDC for configuration
 # -----------------------------------------------
-#prepController(setupObj.icp) # AS - TEST IN LAB
+prepController(setupObj.icp) 
 
 # -----------------------------------------------
 # --- Testing all the pixels,
@@ -83,43 +83,39 @@ setPixNmb(setupObj)
 # --------------------------
 sectionPrint("configure the PDCs")
 createPDCSetting(setupObj)
-#setConfigMode(setupObj.client) # AS - TEST IN LAB
+setConfigMode(setupObj.client)
 
-#configAllRegisters?
-"""configRegister_pixl(setupObj)
-configRegister_time(setupObj)
-configRegister_anlg(setupObj)
-configRegister_outd(setupObj)
-configRegister_outf(setupObj)
-configRegister_trgc(setupObj)"""
+configAllRegisters(setupObj) #add option to change timing variables
 
 disableAllPixels(setupObj.client)
 validateConfig(setupObj.icp)
 
-#configRegister_outc(setupObj) # AS - TEST IN LAB
-#setupObj.pdcSetting.print() # AS - TEST IN LAB
+configRegister_outc(setupObj) 
+setupObj.pdcSetting.print() 
 
 # ---------------------------------------
 # --- configure Controller ZPP module ---
 # ---------------------------------------
 sectionPrint("configure Controller ZPP module")
-#configZppMethod(setupObj) # AS - TEST IN LAB
+configZppMethod(setupObj) 
 
 # ---------------------------------------
 # --- ORNL SPECIFIC - Set up power supply settings
 # ---------------------------------------
 sectionPrint("configure HV")
-#setupHV(setupObj) # AS - TEST IN LAB
+inst_dcps, inst_bkps = setupHV(setupObj) 
 
 # ---------------------------------------
 # --- Notify user of manual steps
 # ---------------------------------------
-#deliverBias(setupObj) # AS - TEST IN LAB
+deliverBias(setupObj) 
 
 # ------------------------------------------------
 # --- Prepare Controller FSM for the acquisition
 # ------------------------------------------------
-#prepFSM(setupObj.client)
+prepFSM(setupObj.client)
 
 #check object
 print(', '.join("%s: %s" % item for item in vars(setupObj).items()))
+
+powerRampDown(inst_dcps, inst_bkps)

@@ -52,9 +52,9 @@ def setBias(setupObj):
             spadBiasStr = "_" + spadBias + "V"
         print(f"SPAD bias voltage set to {spadBias} V")
     else:
-        spadBias = None
+        spadBias = 0
         spadBiasStr = ""
-    setupObj.spadBias = spadBias
+    setupObj.spadBias = float(spadBias)
     setupObj.spadBiasStr = spadBiasStr
 
 def setHeadID(setupObj):

@@ -1,5 +1,5 @@
 import os
-#from modules.zynqCtlPdcRoutines import initCtlPdcFromClient, packetBank # AS - TEST IN LAB
+from modules.zynqCtlPdcRoutines import initCtlPdcFromClient, packetBank 
 
 
 def setPDCController(setupObj, sysClkPrd=10e-9):
@@ -12,8 +12,7 @@ def setPDCController(setupObj, sysClkPrd=10e-9):
     #       pdcEn=0xF -> PDC0, PDC1, PDC2, PDC3
     # NOTE: set environment variable PDC_EN tp set which PDCs to use
     setupObj.pdcEn = int(os.environ.get("PDC_EN", default="0xF"), 0)
-    #setupObj.icp = initCtlPdcFromClient(client=setupObj.client, sysClkPrd=setupObj.sysClkPrd, pdcEn=setupObj.pdcEn) # AS - TEST IN LAB
-    setupObj.icp = 0
+    setupObj.icp = initCtlPdcFromClient(client=setupObj.client, sysClkPrd=setupObj.sysClkPrd, pdcEn=setupObj.pdcEn) 
 
 def resetController(contObj):
     contObj.resetCtl()
@@ -36,7 +35,7 @@ def configControllerPacket(contObj):
         # 0x0100 = DSUM
         # 0x00F7 = ZPP
     SPDA = 0x00F7
-    #contObj.setCtlPacket(bank=packetBank.BANKA, SCS=SCSA, SCD=SCDA, SPD=SPDA)
+    contObj.setCtlPacket(bank=packetBank.BANKA, SCS=SCSA, SCD=SCDA, SPD=SPDA)
 
 def setDelay(contObj):
     contObj.setDelay(signal="CFG_DATA", delay=300)
@@ -58,9 +57,9 @@ def prepController(contObj):
 
 def setPixNmb(setupObj):
     setupObj.nspad = int(os.environ.get("N_SPAD", default=4096))#64))
-    # setupObj.icp.nSpad = setupObj.nspad # AS - TEST IN LAB
+    setupObj.icp.nSpad = setupObj.nspad # AS - TEST IN LAB
 
 def validateConfig(contObj):
     # === VALIDATE CONFIGURATIONS ===
     print("\n=== VALIDATE CONFIGURATIONS ===")
-    #contObj.validPdcCfg()
+    contObj.validPdcCfg()

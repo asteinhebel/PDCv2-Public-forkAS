@@ -26,6 +26,33 @@ def checkSystHealth(healthbytes, instrument):
         print(f"Failed system health: {healthbytes}")
         sys.exit()
 
+def powerRampDown(inst_dcps, inst_bkps):
+    # ORNL SPECIFIC - turn off power 
+    print("Turn off power supplies")
+    print("Keysight ramping down....")
+    for vDown in range(25,-1,-1):
+        time.sleep(0.5)
+        inst_dcps.write(f"APPL {float(vDown)}, 0.1")
+    print("Keysight HV is turned off")
+
+    print(f"Run over - turn off Keysight output")
+    inst_dcps.write("APPL 0.0, 0.0")
+    inst_dcps.write("OUTP OFF")
+    inst_dcps.close()
+    print("BK ramping down....")
+    for vDown in range(250,-1,-10):
+        time.sleep(0.5)
+        inst_bkps.write(f"SOUR:VOLT {float(vDown)}")
+    print("BK HV is turned off")
+
+    print(f"Run over - turn off BK output")
+    inst_bkps.write("SOUR:VOLT 0.0")
+    inst_bkps.write("OUT OFF")
+    inst_bkps.write("PROT:OCP OFF")
+    inst_bkps.write("PROT:OVP OFF")
+    inst_bkps.close()
+    return
+
 def setupHV(setupObj):
     ###Identify supplies
     rm = pyvisa.ResourceManager('@py')
@@ -81,6 +108,8 @@ def setupHV(setupObj):
     setupObj.inst_bkps = inst_bkps
     setupObj.inst_dcps = inst_dcps
 
+    return inst_dcps, inst_bkps
+
 def deliverBias(setupObj):
     try:
         print(f"{fgColors.bYellow}Apply HV here{fgColors.endc}")
@@ -106,7 +135,7 @@ def deliverBias(setupObj):
             setupObj.inst_dcps.write("OUTP ON")
 
             print("Keysight HV Ramping up....")
-            for vUp in range(setupObj.spadBias+1):
+            for vUp in range(int(setupObj.spadBias)+1):
                 time.sleep(0.5)
                 setupObj.inst_dcps.write(f"APPL {float(vUp)}, 0.1")
             print("Keysight HV is supplied")
@@ -114,4 +143,5 @@ def deliverBias(setupObj):
             input("Press [enter] key to continue")
     except KeyboardInterrupt:
         print("\nKeyboard Interrupt: exit program")
+        powerRampDown()
         sys.exit()
