@@ -29,6 +29,7 @@ import matplotlib.ticker as mticker
 import warnings
 import threading
 import pyvisa, glob
+import pyvisa, glob
 
 # custom modules
 from modules.fgColors import fgColors
@@ -41,6 +42,7 @@ from modules.zynqDataTransfer import zynqDataTransfer
 from modules.systemHelper import sectionPrint, save_environVars
 from modules.pdcHelper import *
 from modules.h5Reader import *
+
 
 # -----------------------------------------------
 # --- 
@@ -84,6 +86,10 @@ if os.environ.get("HEAD_ID") is not None:
     headId = os.environ['HEAD_ID']
     headStr = f"H{headId}_"
     print(f"Using head {headId}")
+
+#NOTE: set environment variable FNAME to store it in data file name
+if os.environ.get("FNAME") is not None:
+    nameStr = os.environ['FNAME']
 
 
 # -----------------------------------------------
