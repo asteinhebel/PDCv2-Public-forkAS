@@ -1046,6 +1046,8 @@ finally:
     if not 'test_stop_time' in locals():
         test_stop_time = time.time()
         print(f"{fgColors.bBlue}Test took {test_stop_time-test_start_time:.3f} seconds{fgColors.endc}")
+    zynq.close()
+    sys.exit()
 
 
 

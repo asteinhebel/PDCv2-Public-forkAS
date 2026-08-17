@@ -16,6 +16,8 @@ import sys, os
 import ipaddress
 import subprocess
 import glob
+import time
+from pssh.exceptions import SessionError
 
 # custom modules
 from pdcv2_modules.fgColors import fgColors
@@ -69,21 +71,7 @@ class zynqDataTransfer:
         destructor, cleaning everything, closing app when done
         """
         # destructor
-        if self.dataReaderPidLocal != None:
-            # close dataReader if open within this app
-            for PID in self.dataReaderPidLocal:
-                print(f"closing {self.dataReaderName} at PID {PID}")
-                self.sshClient.run(f"kill {PID}")
-        if self.hexAppPidLocal != None:
-            # close hexApp if open within this app
-            for PID in self.hexAppPidLocal:
-                print(f"closing {self.hexAppName} at PID {PID}")
-                #os.popen(f"kill {PID}")
-                # to kill only if process is still active
-                try:
-                    os.popen(f"pgrep {self.hexAppName} | grep {self.hexAppPidLocal} | xargs -I {{}} kill {{}}")
-                except ImportError as e: # Python was shutting when this was called
-                    pass
+        self.close()
 
 
     def debug(self):
@@ -446,6 +434,25 @@ class zynqDataTransfer:
                     print(f"Error deleting {file_path}: {e}")
             print(f"\nDeleted {nDeletedFiles} files")
 
+    def close(self):
+        if self.dataReaderPidLocal != None:
+            # close dataReader if open within this app
+            for PID in self.dataReaderPidLocal:
+                print(f"closing {self.dataReaderName} at PID {PID}")
+                self.sshClient.run(f"kill {PID}")
+                self.dataReaderPidLocal = None
+        if self.hexAppPidLocal != None:
+            # close hexApp if open within this app
+            for PID in self.hexAppPidLocal:
+                print(f"closing {self.hexAppName} at PID {PID}")
+                #os.popen(f"kill {PID}")
+                # to kill only if process is still active
+                try:
+                    os.popen(f"pgrep {self.hexAppName} | grep {self.hexAppPidLocal} | xargs -I {{}} kill {{}}")
+                except ImportError as e: # Python was shutting when this was called
+                    pass
+                self.hexAppPidLocal = None
+
 
 if __name__ == "__main__":
     # testing the class
@@ -475,6 +482,7 @@ if __name__ == "__main__":
         # -----------------------------------------------
         sectionPrint("print members of zynq object")
         zynq.debug()
+        zynq.close()
     finally:
         pass
 

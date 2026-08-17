@@ -484,6 +484,7 @@ except KeyboardInterrupt:
 
 finally:
     client.runPrint("stop")
+    zynq.close()
     sys.exit()
 
 

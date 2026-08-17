@@ -30,6 +30,7 @@ class sshClient:
     def __init__(self, host, user, password):
         self.client = SSHClient(host=host, user=user, password=password)
     def __del__(self):
+        print("Disconnecting sshClient")
         self.client.disconnect()
 
     # -----------------------------------------------

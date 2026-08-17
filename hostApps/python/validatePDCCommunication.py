@@ -59,7 +59,7 @@ class Head2x2TestRunner(unittest.TestCase):
         cls._reader.h5Close()
         cls.ctlCfg.resetCtl()
 
-        cls._zynqDataTx.__del__()
+        cls._zynqDataTx.close()
         return super().tearDownClass()
     
     def tearDown(cls):

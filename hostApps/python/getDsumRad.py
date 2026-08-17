@@ -782,6 +782,7 @@ finally:
         if "pixelStatsFileName" in locals() and os.path.exists(pixelStatsFileName):
             # remove pixel stats if file dsumCsvFile is empty
             os.remove(pixelStatsFileName)
+    zynq.close()
     sys.exit()
 
 
