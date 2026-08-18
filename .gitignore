@@ -1,2 +1,4 @@
-venv/
+venv**/
+.venv/
+hostApps/python/.venv
 **/__pycache__
