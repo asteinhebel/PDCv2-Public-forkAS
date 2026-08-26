@@ -69,27 +69,7 @@ class zynqDataTransfer:
     def __del__(self):
         """
         destructor, cleaning everything, closing app when done
-        """
-        # destructor
-        """
-        if self.dataReaderPidLocal != None:
-            # close dataReader if open within this app
-            for PID in self.dataReaderPidLocal:
-                print(f"closing {self.dataReaderName} at PID {PID}")
-                self.sshClient.run(f"kill {PID}")
-        if self.hexAppPidLocal != None:
-            # close hexApp if open within this app
-            for PID in self.hexAppPidLocal:
-                print(f"closing {self.hexAppName} at PID {PID}")
-                #os.popen(f"kill {PID}")
-                # to kill only if process is still active
-                try:
-                    cmd=f"pgrep {self.hexAppName} | grep {self.hexAppPidLocal} | xargs -i {{}} kill {{}}".split(" ")
-                    subprocess.Popen(cmd)
-
-                except ImportError as e: # Python was shutting when this was called
-                    pass
-        """
+        """        
         self.close()
 
 
@@ -466,7 +446,8 @@ class zynqDataTransfer:
                 #os.popen(f"kill {PID}")
                 # to kill only if process is still active
                 try:
-                    os.popen(f"pgrep {self.hexAppName} | grep {self.hexAppPidLocal} | xargs -I {{}} kill {{}}")
+                    cmd=f"pgrep {self.hexAppName} | grep {self.hexAppPidLocal} | xargs -i {{}} kill {{}}".split(" ")
+                    subprocess.Popen(cmd)
                 except ImportError as e: # Python was shutting when this was called
                     pass
                 self.hexAppPidLocal = None
