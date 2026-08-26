@@ -27,19 +27,19 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 
 # custom modules
-from modules.fgColors import fgColors
-from modules.zynqEnvHelper import PROJECT_PATH, HOST_APPS_PATH, USER_DATA_DIR, HDF5_DATA_DIR
-import modules.sshClientHelper as sshClientHelper
-import modules.systemHelper as systemHelper
-import modules.pixMap as pixMap
-from modules.zynqCtlPdcRoutines import initCtlPdcFromClient, packetBank
-from modules.zynqDataTransfer import zynqDataTransfer
-from modules.systemHelper import sectionPrint
-from modules.pdcHelper import *
+from pdcv2_modules.fgColors import fgColors
+from pdcv2_modules.zynqEnvHelper import PROJECT_PATH, HOST_APPS_PATH, USER_DATA_DIR, HDF5_DATA_DIR
+import pdcv2_modules.sshClientHelper as sshClientHelper
+import pdcv2_modules.systemHelper as systemHelper
+import pdcv2_modules.pixMap as pixMap
+from pdcv2_modules.zynqCtlPdcRoutines import initCtlPdcFromClient, packetBank
+from pdcv2_modules.zynqDataTransfer import zynqDataTransfer
+from pdcv2_modules.systemHelper import sectionPrint
+from pdcv2_modules.pdcHelper import *
 #from modules.zynqHelper import *
-from modules.h5Reader import *
+from pdcv2_modules.h5Reader import *
 
-import modules.pdcSpadFunctions as pdcSpadFunctions
+import pdcv2_modules.pdcSpadFunctions as pdcSpadFunctions
 
 try:
     scriptName = os.path.basename(__file__)
@@ -148,7 +148,7 @@ zynq.initDataReader(dataReaderLaunch=True)
 CSV_DATA_DIR = os.path.join(USER_DATA_DIR, f"DSUM_CSV_3D_{radSource}")
 DATE_STR = datetime.datetime.now().strftime("%Y%m%d_%Hh%Mm%S")
 # DATA_TYPE: "all", "NZ", "NZKF", "dt", "max"
-DATA_TYPE = "NZ"
+DATA_TYPE = "NZKF"
 BIN_IDX_MODE = "time" # "continuous", "frame", "time"
 DATA_FILE_NAME = f"{DATE_STR}_{os.path.splitext(scriptName)[0]}_{headStr}{DATA_TYPE}_{BIN_IDX_MODE}{spadBiasStr}.csv"
 dsumCsvFile = os.path.join(CSV_DATA_DIR, DATA_FILE_NAME)
@@ -575,10 +575,10 @@ sectionPrint("enable PDC SPADs")
 
 # generate a pattern to select which SPADs to enable
 pixEnMask = np.zeros((pixMap.TOP_NX_PIX, pixMap.TOP_NY_PIX), dtype=int) # init an empty mask to set later
-maskCX = 32 # center position in X axis (from wirebond 1 to wirebond 32)
-maskCY = 32 # center position in Y axis (from CMOS pads to 2D SPADs)
-maskX = 64 # width in X axis (used to match scintillator size)
-maskY = 64 # width in Y axis (used to match scintillator size)
+maskCX = 34 # center position in X axis (from wirebond 1 to wirebond 32)
+maskCY = 35 # center position in Y axis (from CMOS pads to 2D SPADs)
+maskX = 41 # width in X axis (used to match scintillator size)
+maskY = 41 # width in Y axis (used to match scintillator size)
 
 
 # load TCR CSV file into a pandas dataframe
@@ -586,6 +586,7 @@ dfTcr = pd.read_csv(tcrFile, header=0, sep=';')
 
 # print both to terminal and a file the enabled pixels statistics
 pixelStatsFileName = os.path.splitext(dsumCsvFile)[0]+".txt"
+os.makedirs(os.path.dirname(pixelStatsFileName), exist_ok=True)
 pixelStatsFile = open(pixelStatsFileName, 'w')
 defaultStdout = sys.stdout
 sys.stdout = systemHelper.Tee(defaultStdout, pixelStatsFile)
@@ -634,8 +635,9 @@ for iPdc in range(icp.nPdcMax):
             # Here, keeping only SPADs with TCR below 100 cps (thConst)
             regs = pdcSpadFunctions.convertPixArrayToReg(
                         pixArray=dfTcr[f"SPAD_TCR{iPdc}"],
-                        thMethod=pdcSpadFunctions.ThreshMethod.constant,
+                        thMethod=pdcSpadFunctions.ThreshMethod.percent,
                         thConst=100.0,
+                        thPct=95,
                         thOp=pdcSpadFunctions.ThreshOp.le,
                         pixEnMask = pixEnMask,
                         returnAnalysis=False,
@@ -780,6 +782,7 @@ finally:
         if "pixelStatsFileName" in locals() and os.path.exists(pixelStatsFileName):
             # remove pixel stats if file dsumCsvFile is empty
             os.remove(pixelStatsFileName)
+    zynq.close()
     sys.exit()
 
 

@@ -20,7 +20,7 @@ from sshconf import read_ssh_config
 from os.path import expanduser
 
 # custom modules
-from modules.fgColors import fgColors
+from pdcv2_modules.fgColors import fgColors
 
 # class to deal with functions
 class sshClient:
@@ -30,6 +30,7 @@ class sshClient:
     def __init__(self, host, user, password):
         self.client = SSHClient(host=host, user=user, password=password)
     def __del__(self):
+        print("Disconnecting sshClient")
         self.client.disconnect()
 
     # -----------------------------------------------

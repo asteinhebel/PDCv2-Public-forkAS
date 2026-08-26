@@ -10,14 +10,14 @@
 #-- Revision 1.0 - File Created
 #-- Additional Comments:
 #----------------------------------------------------------------------------------
-from modules.fgColors import fgColors
-from modules.zynqEnvHelper import PROJECT_PATH, HOST_APPS_PATH, USER_DATA_DIR, HDF5_DATA_DIR
-import modules.sshClientHelper as sshClientHelper
-from modules.zynqCtlPdcRoutines import initCtlPdcFromClient, packetBank
-from modules.pdcHelper import pdc_setting, setPdcTimeReg
-from modules.h5Reader import h5Reader
-from modules.zynqDataTransfer import zynqDataTransfer
-from modules.systemHelper import sectionPrint
+from pdcv2_modules.fgColors import fgColors
+from pdcv2_modules.zynqEnvHelper import PROJECT_PATH, HOST_APPS_PATH, USER_DATA_DIR, HDF5_DATA_DIR
+import pdcv2_modules.sshClientHelper as sshClientHelper
+from pdcv2_modules.zynqCtlPdcRoutines import initCtlPdcFromClient, packetBank
+from pdcv2_modules.pdcHelper import pdc_setting, setPdcTimeReg
+from pdcv2_modules.h5Reader import h5Reader
+from pdcv2_modules.zynqDataTransfer import zynqDataTransfer
+from pdcv2_modules.systemHelper import sectionPrint
 import unittest
 import numpy as np
 import os, sys
@@ -59,7 +59,7 @@ class Head2x2TestRunner(unittest.TestCase):
         cls._reader.h5Close()
         cls.ctlCfg.resetCtl()
 
-        cls._zynqDataTx.__del__()
+        cls._zynqDataTx.close()
         return super().tearDownClass()
     
     def tearDown(cls):

@@ -69,3 +69,31 @@ To do so simply download the file from the release tab of this repo and extract 
 After flashing the SD card, its content have been wiped so you will need to re-register your RSA key used for SSH connection.
 You can do so by using the script provided and specifying the argument: `setupHosts/setup.sh --ssh_rsa_config`.
 
+## Using Python modules as external dependencies with git submodules
+
+When developping new applications and analysis scripts, it is recommended to stabilise the version of acquistion scripts and modules.
+Our current recommandation is when doing so, create a new git repo for your project and add this repo as git submodule.
+This will help track which version of pdcv2-public's tools were used and ensure reproducibility in the future.
+To do so you can refer to the following commands:
+
+Adding the submodule
+```shell
+mdkir extern
+git submodule add git@gitlab.gegi.usherbrooke.ca:grams3d/pdcv2-public.git extern/pdcv2-public
+```
+
+Setting a specific revision (the submodule behaves a normally cloned repository)
+```shell
+cd extern/pdcv2-public
+git checkout <commit|tag|branch chosen>
+```
+
+Adding the checked-out module to your development virtual environment
+```shell
+# Specify -e to avoid making a copy of the files within your venv folder
+pip install --editable extern/pdcv2-public/hostApps/python/ 
+# or uv add --editable extern/pdcv2-public/hostApps/python/ 
+```
+
+
+

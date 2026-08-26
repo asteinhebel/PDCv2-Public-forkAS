@@ -14,7 +14,7 @@
 import subprocess
 import sys, os
 import traceback
-from modules.fgColors import fgColors
+from pdcv2_modules.fgColors import fgColors
 
 def sectionPrint(msg):
     print('')

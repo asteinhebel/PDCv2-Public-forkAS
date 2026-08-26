@@ -31,17 +31,17 @@ import warnings
 import threading
 
 # custom modules
-from modules.fgColors import fgColors
-from modules.zynqEnvHelper import PROJECT_PATH, HOST_APPS_PATH, USER_DATA_DIR, HDF5_DATA_DIR
-import modules.sshClientHelper as sshClientHelper
-import modules.systemHelper as systemHelper
-import modules.pixMap as pixMap
-from modules.zynqCtlPdcRoutines import initCtlPdcFromClient, packetBank
-from modules.zynqDataTransfer import zynqDataTransfer
-from modules.systemHelper import sectionPrint
-from modules.pdcHelper import *
+from pdcv2_modules.fgColors import fgColors
+from pdcv2_modules.zynqEnvHelper import PROJECT_PATH, HOST_APPS_PATH, USER_DATA_DIR, HDF5_DATA_DIR
+import pdcv2_modules.sshClientHelper as sshClientHelper
+import pdcv2_modules.systemHelper as systemHelper
+import pdcv2_modules.pixMap as pixMap
+from pdcv2_modules.zynqCtlPdcRoutines import initCtlPdcFromClient, packetBank
+from pdcv2_modules.zynqDataTransfer import zynqDataTransfer
+from pdcv2_modules.systemHelper import sectionPrint
+from pdcv2_modules.pdcHelper import *
 #from modules.zynqHelper import *
-from modules.h5Reader import *
+from pdcv2_modules.h5Reader import *
 
 try:
     scriptName = os.path.basename(__file__)
@@ -1046,5 +1046,7 @@ finally:
     if not 'test_stop_time' in locals():
         test_stop_time = time.time()
         print(f"{fgColors.bBlue}Test took {test_stop_time-test_start_time:.3f} seconds{fgColors.endc}")
+    zynq.close()
+    sys.exit()
 
 
