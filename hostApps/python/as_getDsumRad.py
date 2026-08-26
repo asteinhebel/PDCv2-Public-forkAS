@@ -28,18 +28,18 @@ import matplotlib.colors as mcolors
 import pyvisa, glob
 
 # custom modules
-from modules.fgColors import fgColors
-from modules.zynqEnvHelper import PROJECT_PATH, HOST_APPS_PATH, USER_DATA_DIR, HDF5_DATA_DIR
-import modules.sshClientHelper as sshClientHelper
-import modules.systemHelper as systemHelper
-import modules.pixMap as pixMap
-from modules.zynqCtlPdcRoutines import initCtlPdcFromClient, packetBank
-from modules.zynqDataTransfer import zynqDataTransfer
-from modules.systemHelper import sectionPrint, strToBool, save_environVars
-from modules.pdcHelper import *
-from modules.h5Reader import *
+from pdcv2_modules.fgColors import fgColors
+from pdcv2_modules.zynqEnvHelper import PROJECT_PATH, HOST_APPS_PATH, USER_DATA_DIR, HDF5_DATA_DIR
+import pdcv2_modules.sshClientHelper as sshClientHelper
+import pdcv2_modules.systemHelper as systemHelper
+import pdcv2_modules.pixMap as pixMap
+from pdcv2_modules.zynqCtlPdcRoutines import initCtlPdcFromClient, packetBank
+from pdcv2_modules.zynqDataTransfer import zynqDataTransfer
+from pdcv2_modules.systemHelper import sectionPrint, strToBool, save_environVars
+from pdcv2_modules.pdcHelper import *
+from pdcv2_modules.h5Reader import *
 
-import modules.pdcSpadFunctions as pdcSpadFunctions
+import pdcv2_modules.pdcSpadFunctions as pdcSpadFunctions
 
 try:
     scriptName = os.path.basename(__file__)
