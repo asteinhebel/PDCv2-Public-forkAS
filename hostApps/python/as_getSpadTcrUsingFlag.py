@@ -29,19 +29,18 @@ import matplotlib.ticker as mticker
 import warnings
 import threading
 import pyvisa, glob
-import pyvisa, glob
 
 # custom modules
-from modules.fgColors import fgColors
-from modules.zynqEnvHelper import PROJECT_PATH, HOST_APPS_PATH, USER_DATA_DIR, HDF5_DATA_DIR
-import modules.sshClientHelper as sshClientHelper
-import modules.systemHelper as systemHelper
-import modules.pixMap as pixMap
-from modules.zynqCtlPdcRoutines import initCtlPdcFromClient, packetBank
-from modules.zynqDataTransfer import zynqDataTransfer
-from modules.systemHelper import sectionPrint, save_environVars
-from modules.pdcHelper import *
-from modules.h5Reader import *
+from pdcv2_modules.fgColors import fgColors
+from pdcv2_modules.zynqEnvHelper import PROJECT_PATH, HOST_APPS_PATH, USER_DATA_DIR, HDF5_DATA_DIR
+import pdcv2_modules.sshClientHelper as sshClientHelper
+import pdcv2_modules.systemHelper as systemHelper
+import pdcv2_modules.pixMap as pixMap
+from pdcv2_modules.zynqCtlPdcRoutines import initCtlPdcFromClient, packetBank
+from pdcv2_modules.zynqDataTransfer import zynqDataTransfer
+from pdcv2_modules.systemHelper import sectionPrint, save_environVars
+from pdcv2_modules.pdcHelper import *
+from pdcv2_modules.h5Reader import *
 
 
 # -----------------------------------------------
@@ -337,8 +336,16 @@ def checkSystHealth(healthbytes):
 
 ###Identify supplies
 rm = pyvisa.ResourceManager('@py')
-serialID_bkps = glob.glob('/dev/serial/by-id/*CP2102*')[0]
-serialID_dcps = glob.glob('/dev/serial/by-id/*Prolific*')[0]
+try:
+    serialID_bkps = glob.glob('/dev/serial/by-id/*CP2102*')[0]
+except IndexError:
+    print('Cannot find a device with the expected BKPS ID#')
+    sys.exit()
+try:
+    serialID_dcps = glob.glob('/dev/serial/by-id/*Prolific*')[0]
+except IndexError:
+    print('Cannot find a device with the expected Keysight ID#')
+    sys.exit()
 resource_bkps = f"ASRL/dev/{os.readlink(serialID_bkps)[-7:]}::INSTR"
 resource_dcps = f"ASRL/dev/{os.readlink(serialID_dcps)[-7:]}::INSTR"
 
@@ -611,6 +618,9 @@ class tcrPlotter:
         # limits
         set_lim(self.axes.flat[self.axTcr], self.spadTcr)
         set_lim(self.axes.flat[self.axPop], self.spadPop)
+
+    def closePlot(self):
+        plt.close()
 
     def updateLegend(self):
         """
@@ -1228,31 +1238,8 @@ except (KeyboardInterrupt, SystemExit) as ex:
         print(f"\n{fgColors.yellow}Program interrupted: exit program{fgColors.endc}")
 
 finally:
+    tp.closePlot()
     powerRampDown()
-    """# ORNL SPECIFIC - turn off power 
-                print("Turn off power supplies")
-                print("Keysight ramping down....")
-                for vDown in range(25,-1,-1):
-                    time.sleep(0.5)
-                    inst_dcps.write(f"APPL {float(vDown)}, 0.1")
-                print("Keysight HV is turned off")
-            
-                print(f"Run over - turn off Keysight output")
-                inst_dcps.write("APPL 0.0, 0.0")
-                inst_dcps.write("OUTP OFF")
-                inst_dcps.close()
-                print("BK ramping down....")
-                for vDown in range(250,-1,-10):
-                    time.sleep(0.5)
-                    inst_bkps.write(f"SOUR:VOLT {float(vDown)}")
-                print("BK HV is turned off")
-            
-                print(f"Run over - turn off BK output")
-                inst_bkps.write("SOUR:VOLT 0.0")
-                inst_bkps.write("OUT OFF")
-                inst_bkps.write("PROT:OCP OFF")
-                inst_bkps.write("PROT:OVP OFF")
-                inst_bkps.close()"""
 
     # -----------------------------------------------
     # --- save config values
