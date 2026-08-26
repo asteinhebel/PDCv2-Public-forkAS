@@ -31,5 +31,4 @@ export SCREAMER_FACTOR=1.5 #for "medianFactor"
 
 #SCRIPT SPECIFIC PARAMS
 export RAD_SOURCE_NAME="test"
-export TCR_FILE="/home/i8x/PDCv2-data/TCR/as_getSpadTcrUsingFlag/20260612_14h58m17_TCR_H54_200ms_25V_PDC0_PDC1_PDC2_PDC3.csv"
-#export TCR_FILE="/home/i8x/PDCv2-data/TCR/getSpadTcrUsingFlag/20260226_15h43m23_TCR_H55_500ms_25V_PDC0_PDC1_PDC2_PDC3.csv"
+export TCR_FILE="/home/i8x/PDCv2-data/TCR/as_getSpadTcrUsingFlag/20260817_14h44m38_TCR_H62_250ms_25V_PDC0_PDC1_PDC2_PDC3_darkbox_coverOff.csv"
