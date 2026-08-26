@@ -2,19 +2,19 @@
 
 #OUTPUT FILE/PLOT PARAMS
 export SPAD_BIAS_V=25
-export HEAD_ID=54
+export HEAD_ID=62
 export ANALOG_ONLY=False
 export FNAME=""
 export SAVE_PLOT=True
-export MEAS_TIME=5
+export MEAS_TIME=0.2
 
 #PDC SETTING PARAMS
 export PDC_EN="0xF"
 export N_SPAD=4096
-export DATA_TYPE="DSUM" #DSUM, ZPP
+export DATA_TYPE="ZPP" #DSUM, ZPP
 
 #TIMING PARAMS
-export HOLD_TIME_NS=5000.0
+export HOLD_TIME_NS=150.0
 export RECH_TIME=10.0
 export FLAG_TIME=2.0
 
