@@ -133,5 +133,7 @@ zope-interface==8.4
     # via gevent
 
 #AS ADDITIONS
+pyserial
 pyvisa
 pyvisa-py
+zeroconf
