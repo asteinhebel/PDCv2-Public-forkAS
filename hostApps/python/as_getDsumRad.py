@@ -123,7 +123,6 @@ if tcrFile is None:
 sectionPrint("open a connection with the ZCU102 board")
 # first check that there aren't any existing hexRead instances running and if so, kill them
 clearHexRead()
-input()
 # parameters of the ZCU102 board
 # open a client based on its name in the ssh config file
 client = sshClientHelper.sshClientFromCfg(hostCfgName="zcudev")
@@ -805,8 +804,18 @@ def checkSystHealth(healthbytes):
 
 ###Identify supplies
 rm = pyvisa.ResourceManager('@py')
-serialID_bkps = glob.glob('/dev/serial/by-id/*CP2102*')[0]
-serialID_dcps = glob.glob('/dev/serial/by-id/*Prolific*')[0]
+try:
+    serialID_bkps = glob.glob('/dev/serial/by-id/*CP2102*')[0]
+except IndexError:
+    print('Cannot find a device with the expected BKPS ID#')
+    del zynq
+    sys.exit()
+try:
+    serialID_dcps = glob.glob('/dev/serial/by-id/*Prolific*')[0]
+except IndexError:
+    print('Cannot find a device with the expected Keysight ID#')
+    del zynq
+    sys.exit()
 resource_bkps = f"ASRL/dev/{os.readlink(serialID_bkps)[-7:]}::INSTR"
 resource_dcps = f"ASRL/dev/{os.readlink(serialID_dcps)[-7:]}::INSTR"
 
