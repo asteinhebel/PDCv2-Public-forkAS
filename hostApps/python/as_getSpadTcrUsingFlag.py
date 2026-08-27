@@ -37,7 +37,7 @@ import pdcv2_modules.sshClientHelper as sshClientHelper
 import pdcv2_modules.systemHelper as systemHelper
 import pdcv2_modules.pixMap as pixMap
 from pdcv2_modules.zynqCtlPdcRoutines import initCtlPdcFromClient, packetBank
-from pdcv2_modules.zynqDataTransfer import zynqDataTransfer
+from pdcv2_modules.zynqDataTransfer import zynqDataTransfer, clearHexRead
 from pdcv2_modules.systemHelper import sectionPrint, save_environVars
 from pdcv2_modules.pdcHelper import *
 from pdcv2_modules.h5Reader import *
@@ -96,6 +96,10 @@ if os.environ.get("FNAME") is not None:
 # -----------------------------------------------
 # open a client based on its name in the ssh config file
 sectionPrint("open a connection with the ZCU102 board")
+# first check that there aren't any existing hexRead instances running and if so, kill them
+clearHexRead()
+# parameters of the ZCU102 board
+# open a client based on its name in the ssh config file
 client = sshClientHelper.sshClientFromCfg(hostCfgName="zcudev")
 
 # -----------------------------------------------
@@ -340,11 +344,13 @@ try:
     serialID_bkps = glob.glob('/dev/serial/by-id/*CP2102*')[0]
 except IndexError:
     print('Cannot find a device with the expected BKPS ID#')
+    del zynq
     sys.exit()
 try:
     serialID_dcps = glob.glob('/dev/serial/by-id/*Prolific*')[0]
 except IndexError:
     print('Cannot find a device with the expected Keysight ID#')
+    del zynq
     sys.exit()
 resource_bkps = f"ASRL/dev/{os.readlink(serialID_bkps)[-7:]}::INSTR"
 resource_dcps = f"ASRL/dev/{os.readlink(serialID_dcps)[-7:]}::INSTR"
@@ -352,9 +358,11 @@ resource_dcps = f"ASRL/dev/{os.readlink(serialID_dcps)[-7:]}::INSTR"
 foundResources = rm.list_resources()
 if resource_bkps not in foundResources:
     print('Could not find BK device in expected location - try unplugging')
+    del zynq
     sys.exit()
 if resource_dcps not in foundResources:
     print('Could not find Keysight device in expected location - try unplugging')
+    del zynq
     sys.exit()
 
 ###Set up BK Precision to supply substrate voltage
@@ -383,6 +391,7 @@ if '0' in systHealth:
     inst_dcps.write("SYST:BEEP")
 else:
     print(f"Failed system health: {systHealth}")
+    del zynq
     sys.exit()
 
 #Ensure that the output is not on while setting proper values
@@ -460,6 +469,7 @@ try:
 except KeyboardInterrupt:
     print("\nKeyboard Interrupt: exit program")
     powerRampDown()
+    del zynq
     sys.exit()
 
 # ------------------------------------------------
@@ -923,6 +933,7 @@ def waitForH5File(timeOutSec=10):
         else:
             if datetime.datetime.now()-t0 > datetime.timedelta(seconds=timeOutSec):
                 print(f"{fgColors.red}ERROR: Timeout while waiting for HDF5 data ({timeOutSec} seconds){fgColors.endc}")
+                del zynq
                 sys.exit()
 
 def measCntRate(measTime, numPdc,
@@ -983,6 +994,7 @@ class LoopingMethod(IntEnum):
 def test_all_pixels(tp: tcrPlotter, update=False, numPdc=icp.nPdcMax):
     if type(tp) == type(None):
         print(f"{fgColors.red}tcrPlotter object must be created first{fgColors.endc}")
+        del zynq
         sys.exit()
 
     if tp.nPdcMax != numPdc:
