@@ -34,7 +34,7 @@ import pdcv2_modules.sshClientHelper as sshClientHelper
 import pdcv2_modules.systemHelper as systemHelper
 import pdcv2_modules.pixMap as pixMap
 from pdcv2_modules.zynqCtlPdcRoutines import initCtlPdcFromClient, packetBank
-from pdcv2_modules.zynqDataTransfer import zynqDataTransfer
+from pdcv2_modules.zynqDataTransfer import zynqDataTransfer, clearHexRead
 from pdcv2_modules.systemHelper import sectionPrint, strToBool, save_environVars
 from pdcv2_modules.pdcHelper import *
 from pdcv2_modules.h5Reader import *
@@ -121,6 +121,9 @@ if tcrFile is None:
 # --- open a connection with the ZCU102 board
 # -----------------------------------------------
 sectionPrint("open a connection with the ZCU102 board")
+# first check that there aren't any existing hexRead instances running and if so, kill them
+clearHexRead()
+input()
 # parameters of the ZCU102 board
 # open a client based on its name in the ssh config file
 client = sshClientHelper.sshClientFromCfg(hostCfgName="zcudev")
@@ -149,7 +152,7 @@ DATE_STR = datetime.datetime.now().strftime("%Y%m%d_%Hh%Mm%S")
 DATA_TYPE = "NZ"
 BIN_IDX_MODE = "time" # "continuous", "frame", "time"
 try:
-    extraName = "_"+os.getenv("FNAME") if os.getenv("FNAME") is not None else ""
+    extraName = "_"+os.getenv("FNAME") if len(os.getenv("FNAME"))>0 else ""
 except TypeError:
     extraName = ""
 DATA_FILE_NAME = f"{DATE_STR}_{os.path.splitext(scriptName)[0]}_{headStr}{DATA_TYPE}_{BIN_IDX_MODE}{spadBiasStr}{extraName}.csv"
@@ -232,15 +235,17 @@ SCDA = 0x0001
     # 0x00F7 = ZPP
 
 if os.getenv("DATA_TYPE", default="DSUM") is None:
-    print(f"{fgColors.bYellow}'DATA_TYPE' not recognized - must be DSUM or ZPP.{fgColors.endc}")
-    sys.exit()
+    print(f"{fgColors.bYellow}'DATA_TYPE' not recognized - assume you mean DSUM for this measurement.{fgColors.endc}")
+    SPDA = 0x0100
 elif os.getenv("DATA_TYPE") == "DSUM":
     SPDA = 0x0100
 elif os.getenv("DATA_TYPE") == "ZPP":
-    SPDA = 0x00F7
+    print(f"{fgColors.bYellow}Do you really want'DATA_TYPE' = ZPP for this measurement? Assume you mean DSUM...{fgColors.endc}")
+    #SPDA = 0x00F7
+    SPDA = 0x0100
 else:
-    print(f"{fgColors.bYellow}'DATA_TYPE' not recognized - must be DSUM or ZPP.{fgColors.endc}")
-    sys.exit()
+    print(f"{fgColors.bYellow}'DATA_TYPE' not recognized - assume you mean DSUM for this measurement.{fgColors.endc}")
+    SPDA = 0x0100
 icp.setCtlPacket(bank=packetBank.BANKA, SCS=SCSA, SCD=SCDA, SPD=SPDA)
 
 # -----------------------------------------------
@@ -795,6 +800,7 @@ def checkSystHealth(healthbytes):
         return
     else:
         print(f"Failed system health: {healthbytes}")
+        del zynq
         sys.exit()
 
 ###Identify supplies
@@ -807,9 +813,11 @@ resource_dcps = f"ASRL/dev/{os.readlink(serialID_dcps)[-7:]}::INSTR"
 foundResources = rm.list_resources()
 if resource_bkps not in foundResources:
     print('Could not find BK device in expected location - try unplugging')
+    del zynq
     sys.exit()
 if resource_dcps not in foundResources:
     print('Could not find Keysight device in expected location - try unplugging')
+    del zynq
     sys.exit()
 
 ###Set up BK Precision to supply substrate voltage
@@ -839,6 +847,7 @@ if '0' in systHealth:
     inst_dcps.write("SYST:BEEP")
 else:
     print(f"Failed system health: {systHealth}")
+    del zynq
     sys.exit()
 
 #Ensure that the output is not on while setting proper values
@@ -855,6 +864,33 @@ inst_dcps.write("VOLT:PROT 25.5")
 # ---------------------------------------
 # --- Notify user of manual steps
 # ---------------------------------------
+def powerRampDown():
+    # ORNL SPECIFIC - turn off power 
+    print("Turn off power supplies")
+    print("Keysight ramping down....")
+    for vDown in range(25,-1,-1):
+        time.sleep(0.5)
+        inst_dcps.write(f"APPL {float(vDown)}, 0.1")
+    print("Keysight HV is turned off")
+
+    print(f"Run over - turn off Keysight output")
+    inst_dcps.write("APPL 0.0, 0.0")
+    inst_dcps.write("OUTP OFF")
+    inst_dcps.close()
+    print("BK ramping down....")
+    for vDown in range(250,-1,-10):
+        time.sleep(0.5)
+        inst_bkps.write(f"SOUR:VOLT {float(vDown)}")
+    print("BK HV is turned off")
+
+    print(f"Run over - turn off BK output")
+    inst_bkps.write("SOUR:VOLT 0.0")
+    inst_bkps.write("OUT OFF")
+    inst_bkps.write("PROT:OCP OFF")
+    inst_bkps.write("PROT:OVP OFF")
+    inst_bkps.close()
+    return
+
 try:
     print(f"{fgColors.bYellow}Apply HV here{fgColors.endc}")
     if os.environ.get("BATCH_MODE") is None:
@@ -887,6 +923,8 @@ try:
         input("Press [enter] key to continue")
 except KeyboardInterrupt:
     print("\nKeyboard Interrupt: exit program")
+    powerRampDown()
+    del zynq #stop dataReader and hexRead
     sys.exit()
 
 
@@ -915,39 +953,21 @@ except KeyboardInterrupt:
     print("\nKeyboard Interrupt: exit program")
 
 finally:
+    test_stop_time = time.time()
+
     # ORNL SPECIFIC - turn off power 
-    print("Turn off power supplies")
-    print("Keysight ramping down....")
-    for vDown in range(25,-1,-1):
-        time.sleep(0.5)
-        inst_dcps.write(f"APPL {float(vDown)}, 0.1")
-    print("Keysight HV is turned off")
-
-    print(f"Run over - turn off Keysight output")
-    inst_dcps.write("APPL 0.0, 0.0")
-    inst_dcps.write("OUTP OFF")
-    inst_dcps.close()
-    print("BK ramping down....")
-    for vDown in range(250,-1,-10):
-        time.sleep(0.5)
-        inst_bkps.write(f"SOUR:VOLT {float(vDown)}")
-    print("BK HV is turned off")
-
-    print(f"Run over - turn off BK output")
-    inst_bkps.write("SOUR:VOLT 0.0")
-    inst_bkps.write("OUT OFF")
-    inst_bkps.write("PROT:OCP OFF")
-    inst_bkps.write("PROT:OVP OFF")
-    inst_bkps.close()
+    powerRampDown()
 
     client.runPrint("stop")
     del zynq
+
     # total execution time
-    test_stop_time = time.time()
     test_duration_sec = test_stop_time-test_start_time
     print(f"{fgColors.bBlue}Test duration:\n  {test_duration_sec:.3f} seconds \n  {test_duration_sec/60:.3f} min \n  {test_duration_sec/3600:.3f} hours{fgColors.endc}")
+
     # WARNING remove empty file at the end of the execution
-    print("dsumCsvFile" in locals(),  os.path.exists(dsumCsvFile), os.path.getsize(dsumCsvFile) == 0)
+    print( os.path.exists(dsumCsvFile))
+    #print("dsumCsvFile" in locals(),  os.path.exists(dsumCsvFile), os.path.getsize(dsumCsvFile) == 0)
     if "dsumCsvFile" in locals() and os.path.exists(dsumCsvFile) and os.path.getsize(dsumCsvFile) == 0:
         os.remove(dsumCsvFile)
         if "pixelStatsFileName" in locals() and os.path.exists(pixelStatsFileName):
