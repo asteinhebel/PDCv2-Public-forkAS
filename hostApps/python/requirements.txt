@@ -136,4 +136,5 @@ zope-interface==8.4
 pyserial
 pyvisa
 pyvisa-py
+scipy
 zeroconf
