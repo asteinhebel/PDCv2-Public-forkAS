@@ -923,6 +923,7 @@ def waitForH5File(timeOutSec=10):
     function to wait for a new HDF5 file
     """
     t0 = datetime.datetime.now()
+    global zynq
     while 1:
         db = h5Reader(deleteAfter=True,
                       hfAbsPath=zynq.h5Path,
@@ -992,10 +993,11 @@ class LoopingMethod(IntEnum):
     index=2,
 
 def test_all_pixels(tp: tcrPlotter, update=False, numPdc=icp.nPdcMax):
+
     if type(tp) == type(None):
         print(f"{fgColors.red}tcrPlotter object must be created first{fgColors.endc}")
-        del zynq
-        sys.exit()
+        tp.done_test_all_pixels = True
+        return
 
     if tp.nPdcMax != numPdc:
         numPdc = tp.nPdcMax
@@ -1240,7 +1242,7 @@ try:
         print("\nFigure closed... exit program")
 
 except (KeyboardInterrupt, SystemExit) as ex:
-    if "tp" in locals():
+    if "tp" in locals() and tp is not None:
         tp.run = False
     if "thread_test" in locals():
         thread_test.join()
@@ -1250,7 +1252,8 @@ except (KeyboardInterrupt, SystemExit) as ex:
         print(f"\n{fgColors.yellow}Program interrupted: exit program{fgColors.endc}")
 
 finally:
-    tp.closePlot()
+    if tp is not None:
+        tp.closePlot()
     powerRampDown()
 
     # -----------------------------------------------
