@@ -18,6 +18,7 @@ import subprocess
 import glob
 import time
 from pssh.exceptions import SessionError
+import psutil
 
 # custom modules
 from pdcv2_modules.fgColors import fgColors
@@ -446,11 +447,26 @@ class zynqDataTransfer:
                 #os.popen(f"kill {PID}")
                 # to kill only if process is still active
                 try:
-                    cmd=f"pgrep {self.hexAppName} | grep {self.hexAppPidLocal} | xargs -i {{}} kill {{}}".split(" ")
-                    subprocess.Popen(cmd)
+                    #cmd=f"pgrep {self.hexAppName} | grep {self.hexAppPidLocal} | xargs -i {{}} kill {{}}".split(" ")
+                    #subprocess.Popen(cmd)
+                    os.popen(f"pgrep {self.hexAppName} | grep {self.hexAppPidLocal} | xargs -I {{}} kill {{}}")
                 except ImportError as e: # Python was shutting when this was called
                     pass
                 self.hexAppPidLocal = None
+
+def clearHexRead():
+    for proc in psutil.process_iter(['pid','name']):
+        try:
+            if 'hexRead'.lower() in proc.info['name'].lower():
+                #Get pid and name of any hexRead process
+                pid = proc.info['pid']
+                name = proc.info['name']
+                print(f"{fgColors.blue}Found existing hexRead process PID {pid}{fgColors.endc}")
+                #kill process
+                proc.kill()
+                print(f"{fgColors.blue}hexRead process PID {pid} killed{fgColors.endc}")
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            pass
 
 
 if __name__ == "__main__":
