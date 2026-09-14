@@ -1175,9 +1175,12 @@ try:
     sectionPrint("Estimate the TCR of the array (no screamers)")
     screamer_method = os.environ.get("SCREAMER_METHOD", default="percent")
     
-    if screamer_method not in ['threshold', 'average', 'percent', 'medianFactor', 'medianToMin']:
+    if screamer_method not in ['threshold', 'constant','average', 'percent', 'medianFactor', 'medianToMin']:
         print(f"Screamer method '{screamer_method}' is not valid. Defaulting to: percent")
         screamer_method = 'percent'
+    #setup script uses 'constant' rather than 'threshold' to be consistent with pdcSpadFunctions.py. Convert 'constant' to 'threshold' if necessary
+    if screamer_method=="constant":
+        screamer_method = "threshold" 
 
     method = getattr(ScreamerMethod, screamer_method)
     print(f"selected method is {method.name}")
