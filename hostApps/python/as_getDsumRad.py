@@ -663,28 +663,22 @@ for iPdc in range(icp.nPdcMax):
             
             # NOTE: convertPixArrayToReg function from python module pdcSpadFunctions
             # supported methods: constant, average, percent, medianFactor, medianToMin
-            # Here, keeping only SPADs with TCR below 100 cps (thConst)
-            constant_threshold = float(os.getenv("SCREAMER_THRESHOLD")) if os.getenv("SCREAMER_THRESHOLD") is not None else 100.0
+            #get desired screamer ID method
+            screamer_methods = ['constant', 'average', 'percent', 'medianFactor', 'medianToMin']
+            screamer_method = os.getenv('SCREAMER_METHOD', default="constant")
+            if screamer_method not in screamer_methods:
+                print(f"{fgColors.bYellow}WARNING: Selected screamer method '{screamer_method}' but this is unallowed. Options are {screamer_methods}. Moving ahead with screamer method 'constant'{fgColors.endc}")
+            screamer_parameter = pdcSpadFunctions.getScreamerValue(screamer_method)
             plotVal = os.path.splitext(dsumCsvFile)[0]+f"_pixelMap_{iPdc}.png" if strToBool(os.getenv("SAVE_PLOT")) else ""
-            """regs = pdcSpadFunctions.convertPixArrayToReg(
-                                                            pixArray=dfTcr[f"SPAD_TCR{iPdc}"],
-                                                            thMethod=pdcSpadFunctions.ThreshMethod.constant,
-                                                            thConst=constant_threshold,
-                                                            thOp=pdcSpadFunctions.ThreshOp.le,
-                                                            pixEnMask = pixEnMask,
-                                                            returnAnalysis=False,
-                                                            log=False,  # set log to True to print the values of the registers to program 
-                                                            plot=plotVal
-                                                            )"""
             regs = pdcSpadFunctions.convertPixArrayToReg(
                         pixArray=dfTcr[f"SPAD_TCR{iPdc}"],
-                        thMethod=pdcSpadFunctions.ThreshMethod.percent,
-                        thPct=90.,
+                        thMethod=getattr(pdcSpadFunctions.ThreshMethod, screamer_method),
                         thOp=pdcSpadFunctions.ThreshOp.le,
                         pixEnMask = pixEnMask,
                         returnAnalysis=False,
                         log=False,  # set log to True to print the values of the registers to program 
-                        plot=plotVal
+                        plot=plotVal, 
+                        **(screamer_parameter or {})
                         )
             # set plotMask to True to see the pixel mask (pixEnMask) not considering the TCR
             plotMask = True #AS 

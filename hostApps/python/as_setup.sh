@@ -4,17 +4,17 @@
 export SPAD_BIAS_V=25
 export HEAD_ID=62
 export ANALOG_ONLY=False
-export FNAME=""
+export FNAME="test"
 export SAVE_PLOT=True
-export MEAS_TIME=0.2
+export MEAS_TIME=5
 
 #PDC SETTING PARAMS
 export PDC_EN="0xF"
 export N_SPAD=4096
-export DATA_TYPE="ZPP" #DSUM, ZPP
+export DATA_TYPE="DSUM" #DSUM, ZPP
 
 #TIMING PARAMS
-export HOLD_TIME_NS=150.0
+export HOLD_TIME_NS=250.0
 export RECH_TIME=10.0
 export FLAG_TIME=2.0
 
@@ -24,11 +24,13 @@ export COIN_NCH_TH=1
 export COIN_NUM_BANK=1
 
 #SCREAMER ID PARAMS
-export SCREAMER_METHOD=average #average, threshold, percent, medianFactor, medianToMin
-export SCREAMER_THRESHOLD=10000.0 #for "threshold" OR for getDsumRad (only uses threshold method)
+export SCREAMER_METHOD=constant #average, constant, percent, medianFactor, medianToMin
+#average and medianToMin do not require input values
+export SCREAMER_THRESHOLD=100.0 #for "constant" 
 export SCREAMER_PERCENT=90.0 #for "percent"
 export SCREAMER_FACTOR=1.5 #for "medianFactor"
 
 #SCRIPT SPECIFIC PARAMS
 export RAD_SOURCE_NAME="test"
-export TCR_FILE="/home/i8x/PDCv2-data/TCR/as_getSpadTcrUsingFlag/20260817_14h44m38_TCR_H62_250ms_25V_PDC0_PDC1_PDC2_PDC3_darkbox_coverOff.csv"
+export TCR_FILE="/home/i8x/PDCv2-data/TCR/as_getSpadTcrUsingFlag/20260827_17h07m11_TCR_H62_250ms_25V_PDC0_PDC1_PDC2_PDC3_darkbox_coverOff_diamond.csv"
+export CSV_FILE="/home/i8x/PDCv2-data/DSUM_CSV_3D_test/20260827_13h54m12_as_getDsumRad_H62_NZ_time_25V.csv"

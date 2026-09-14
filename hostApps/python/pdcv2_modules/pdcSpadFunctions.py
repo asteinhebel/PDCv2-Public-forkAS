@@ -79,6 +79,25 @@ class EnabledPixelAnalysis():
     def pctPerPix(self):
         return self.totalDisabledPerPix/self.totalAllPixPerPix
 
+def getScreamerValue(method):
+    if method == "constant":
+        value = float(os.getenv("SCREAMER_THRESHOLD", default=100.0))
+        arg = "thConst"
+    elif (method == "average") or (method == "medianToMin"):
+        #pdcSpadFunctions.convertPixArrayToReg computes necessary values - don't need to pass anything
+        return None
+    elif method == "percent":
+        value = float(os.getenv("SCREAMER_PERCENT", default = 90.0))
+        arg = "thPct"
+    elif method == "medianFactor":
+        value = float(os.getenv("SCREAMER_FACTOR", default = 1.5))
+        arg = "thMedFactor"
+    else:
+        print(f"{fgColors.bYellow}WARNING: Cannot get screamer value for method {method}. Using 'constant' method with threshold of 100 {fgColors.endc}")
+        arg = "thConst"
+        value = 100.0
+    argDict = {arg:value}
+    return argDict
 
 def convertPixArrayToReg(
                             pixArray, # array or list containing 4096 pixel values
