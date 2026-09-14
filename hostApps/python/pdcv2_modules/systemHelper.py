@@ -69,7 +69,7 @@ def strToBool(var):
 
 def get_environVars():
     #Get PDC-specific environment variables
-    pdcVarsList = ['SPAD_BIAS_V', 'HEAD_ID' ,'ANALOG_ONLY', 'RAD_SOURCE', 'TCR_FILE', 'PDC_EN', 'HOLD_TIME_NS', 'RECH_TIME','FLAG_TIME','N_SPAD','SCREAMER_THRESHOLD','FNAME', 'SAVE_PLOT', 'DATA_TYPE','COIN_WLEN','COIN_NCH_TH','COIN_NUM_BANK']
+    pdcVarsList = ['SPAD_BIAS_V', 'HEAD_ID' ,'ANALOG_ONLY', 'MEAS_TIME', 'RAD_SOURCE_NAME', 'TCR_FILE', 'PDC_EN', 'HOLD_TIME_NS', 'RECH_TIME','FLAG_TIME','N_SPAD','SCREAMER_METHOD','SCREAMER_THRESHOLD', 'SCREAMER_PERCENT', 'SCREAMER_FACTOR', 'FNAME', 'SAVE_PLOT', 'DATA_TYPE','COIN_WLEN','COIN_NCH_TH','COIN_NUM_BANK', 'DSUM_DATA_TYPE', 'BIN_IDX_MODE']
     environVars = os.environ
     pdcVars = {}
     for var in pdcVarsList:
