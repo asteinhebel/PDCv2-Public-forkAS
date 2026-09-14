@@ -2,12 +2,11 @@
 #-- Company: GRAMS
 #-- Designer: Tommy Rossignol
 #--
-#-- Create Date: 2025-09-24
+#-- Create Date: 2025-03-24
 #-- Description:
 #--      Using python ssh libraries to send remote commands to the ZCU102
 #--      This script prepare the Controller and the PDCs for an acquisition.
-#--      Based on the number of photons detected, an acquisition is started.
-#--      Results are stored to a CSV file, to be analysed with another script.
+#--      The acquisition is triggered by the coincidence engine.
 #--
 #-- Dependencies:
 #-- Revision:
@@ -24,22 +23,20 @@ import datetime
 from itertools import chain
 import statistics
 import matplotlib.pyplot as plt
-import matplotlib.colors as mcolors
-import pyvisa, glob
 
 # custom modules
-from pdcv2_modules.fgColors import fgColors
-from pdcv2_modules.zynqEnvHelper import PROJECT_PATH, HOST_APPS_PATH, USER_DATA_DIR, HDF5_DATA_DIR
-import pdcv2_modules.sshClientHelper as sshClientHelper
-import pdcv2_modules.systemHelper as systemHelper
-import pdcv2_modules.pixMap as pixMap
-from pdcv2_modules.zynqCtlPdcRoutines import initCtlPdcFromClient, packetBank
-from pdcv2_modules.zynqDataTransfer import zynqDataTransfer, clearHexRead
-from pdcv2_modules.systemHelper import sectionPrint, strToBool, save_environVars
-from pdcv2_modules.pdcHelper import *
-from pdcv2_modules.h5Reader import *
+from modules.fgColors import fgColors
+from modules.zynqEnvHelper import PROJECT_PATH, HOST_APPS_PATH, USER_DATA_DIR, HDF5_DATA_DIR
+import modules.sshClientHelper as sshClientHelper
+import modules.systemHelper as systemHelper
+import modules.pixMap as pixMap
+from modules.zynqCtlPdcRoutines import initCtlPdcFromClient, packetBank
+from modules.zynqDataTransfer import zynqDataTransfer
+from modules.systemHelper import sectionPrint, strToBool, save_environVars
+from modules.pdcHelper import *
+from modules.h5Reader import *
 
-import pdcv2_modules.pdcSpadFunctions as pdcSpadFunctions
+import modules.pdcSpadFunctions as pdcSpadFunctions
 
 try:
     scriptName = os.path.basename(__file__)
@@ -54,8 +51,8 @@ except NameError:
 
 # NOTE: set environment variable SPAD_BIAS_V to store it in data file name
 spadBiasStr=""
-if os.getenv("SPAD_BIAS_V") is not None:
-    spadBias = os.getenv('SPAD_BIAS_V', default=25)
+if os.environ.get("SPAD_BIAS_V") is not None:
+    spadBias = os.environ['SPAD_BIAS_V']
     if '.' in spadBias:
         spadBiasStr = "_" + spadBias.replace('.', "V")
     elif ',' in spadBias:
@@ -68,37 +65,16 @@ if os.getenv("SPAD_BIAS_V") is not None:
 #NOTE: set environment variable HEAD_ID to store it in data file name
 #      only set the integer value (e.g. 48)
 headStr = ""
-if os.getenv("HEAD_ID") is not None:
-    headId = os.getenv('HEAD_ID')
+if os.environ.get("HEAD_ID") is not None:
+    headId = os.environ['HEAD_ID']
     headStr = f"H{headId}_"
     print(f"Using head {headId}")
 
 
-# NOTE: set environment variable RAD_SOURCE to specify
-#       the radiation source used for the measurement
-#radSource = "Co57"
-#radSource = "Cs137"
-#radSource = "Ge68"
-#radSource = "Am241"
-#radSource = "xray"
-#radSource = "background"
-if os.getenv("RAD_SOURCE_NAME") is not None:
-    radSource = os.getenv('RAD_SOURCE_NAME')
-else:
-    radSource = ""
-print(f"Radiation source: {radSource}")
-
-
-# NOTE: when set to analogOnly, no csv file is generated.
-#       Flag output is set as flag, instead of dsum threshold
-analogOnly = strToBool(os.getenv("ANALOG_ONLY", default="False"))
-print(f"analogOnly: {analogOnly}")
-
-
 # NOTE: specify a TCR file (from getSpadTcrUSingFlag.py) to set which pixels to enable
 tcrFile = None # default value will throw an error
-if os.getenv("TCR_FILE") is not None:
-    tcrFile = os.getenv("TCR_FILE")
+if os.environ.get("TCR_FILE") is not None:
+    tcrFile = os.environ["TCR_FILE"]
     # check if full path is specified
     if os.path.isfile(tcrFile):
         # user specified with full path
@@ -121,8 +97,6 @@ if tcrFile is None:
 # --- open a connection with the ZCU102 board
 # -----------------------------------------------
 sectionPrint("open a connection with the ZCU102 board")
-# first check that there aren't any existing hexRead instances running and if so, kill them
-clearHexRead()
 # parameters of the ZCU102 board
 # open a client based on its name in the ssh config file
 client = sshClientHelper.sshClientFromCfg(hostCfgName="zcudev")
@@ -132,8 +106,8 @@ client = sshClientHelper.sshClientFromCfg(hostCfgName="zcudev")
 # -----------------------------------------------
 sectionPrint("prepare Zynq platform")
 zynq = zynqDataTransfer(sshClientZynq=client)
-#zynq.hexAppName = "hexReadMax"
-#zynq.init() # a custom setting is required here, not using init()
+#zynq.init()
+
 zynq.initNfs()
 
 # make sure no file remains from previous test run
@@ -143,7 +117,7 @@ zynq.cleanDataPath()
 zynq.initDataReader(dataReaderLaunch=True)
 
 # dsum module settings
-CSV_DATA_DIR = os.path.join(USER_DATA_DIR, f"DSUM_CSV_3D_{radSource}")
+CSV_DATA_DIR = os.path.join(USER_DATA_DIR, f"DSUM_CSV_3D_coincidence")
 if not os.path.exists(CSV_DATA_DIR):
     os.makedirs(CSV_DATA_DIR)
 DATE_STR = datetime.datetime.now().strftime("%Y%m%d_%Hh%Mm%S")
@@ -154,32 +128,21 @@ BIN_IDX_MODE = os.getenv("BIN_IDX_MODE", default="time")
 if BIN_IDX_MODE not in ['time','continuous','frame']:
     print(f"{fgColors.yellow}BIN_IDX_MODE '{BIN_IDX_MODE} is not allowed. Using 'time' {fgColors.endc}")
 try:
-    extraName = "_"+os.getenv("FNAME") if len(os.getenv("FNAME"))>0 else ""
+    extraName = "_"+os.environ["FNAME"] if os.environ.get("FNAME") is not None else ""
 except TypeError:
     extraName = ""
 DATA_FILE_NAME = f"{DATE_STR}_{os.path.splitext(scriptName)[0]}_{headStr}{DATA_TYPE}_{BIN_IDX_MODE}{spadBiasStr}{extraName}.csv"
 dsumCsvFile = os.path.join(CSV_DATA_DIR, DATA_FILE_NAME)
-print(f"{fgColors.blue}Writing CSV to {dsumCsvFile}{fgColors.endc}")
 
-
-# zpp module settings
-CSV_ZPP_DIR = os.path.join(USER_DATA_DIR, f"ZPP_CSV_3D_{radSource}")
-#zppOptions = f"-M zpp " \
-#             f"-o {CSV_ZPP_DIR} " \
-#             f"-f getDsumOnAnyFlagZpp.csv"
-zppOptions = "" # disabled zpp readout
-
-# hexRead options (not saving to HDF5 file)
-if not analogOnly:
-    zynq.initHex(autoStart=True,
-                archive=False,
-                printParsed=False,
-                exportH5=False,
-                hexReadExtraArgs=f"-M dsum " \
-                                f"-o {CSV_DATA_DIR} " \
-                                f"-f {DATA_FILE_NAME} " \
-                                f"-b {BIN_IDX_MODE} -t {DATA_TYPE} " \
-                                f"{zppOptions} ")
+# hexRead options 
+zynq.initHex(autoStart=True,
+            archive=False,
+            printParsed=False,
+            exportH5=True,
+            hexReadExtraArgs=f"-M dsum " \
+                            f"-o {CSV_DATA_DIR} " \
+                            f"-f {DATA_FILE_NAME} " \
+                            f"-b {BIN_IDX_MODE} -t {DATA_TYPE} ")
 
 # -----------------------------------------------
 # --- save config values
@@ -195,17 +158,17 @@ save_environVars()
 sys.stdout = defaultStdout
 configStatsFile.close()
 
+
 # -----------------------------------------------
 # --- prepare controller for acquisition
 # -----------------------------------------------
-# NOTE: select the PDC to use:
+# NOTE: select here the PDC to use:
 #       pdcEn=0x1 -> PDC0
 #       pdcEn=0x2 -> PDC1
 #       pdcEn=0x4 -> PDC2
 #       pdcEn=0x8 -> PDC3
 #       pdcEn=0xF -> PDC0, PDC1, PDC2, PDC3
-# NOTE: set environment variable PDC_EN tp set which PDCs to use
-pdcEn = int(os.getenv("PDC_EN", default="0xF"), 0)
+pdcEn = int(os.environ.get("PDC_EN", default="0xF"), 0)
 icp = initCtlPdcFromClient(client=client, sysClkPrd=10e-9, pdcEn=pdcEn)
 
 # -----------------------------------------------
@@ -230,24 +193,20 @@ icp.resetCtl()
     # 0x0007 = ALL CTL_STATUS
 SCSA = 0x1000
 # configure CTL_DATA_A
-    # 0x0001 = GBL_CTL_TDC
-SCDA = 0x0001
+SCDA = 0x0000
 # configure PDC_DATA_A
     # 0x0100 = DSUM
     # 0x00F7 = ZPP
-
-if os.getenv("DATA_TYPE", default="DSUM") is None:
-    print(f"{fgColors.bYellow}'DATA_TYPE' not recognized - assume you mean DSUM for this measurement.{fgColors.endc}")
+if os.environ.get("DATA_TYPE") is None:
+    print(f"{fgColors.bYellow}'DATA_TYPE' not recognized - must be DSUM or ZPP.{fgColors.endc}")
+    sys.exit()
+elif os.environ.get("DATA_TYPE") == "DSUM":
     SPDA = 0x0100
-elif os.getenv("DATA_TYPE") == "DSUM":
-    SPDA = 0x0100
-elif os.getenv("DATA_TYPE") == "ZPP":
-    print(f"{fgColors.bYellow}Do you really want'DATA_TYPE' = ZPP for this measurement? Assume you mean DSUM...{fgColors.endc}")
-    #SPDA = 0x00F7
-    SPDA = 0x0100
+elif os.environ.get("DATA_TYPE") == "ZPP":
+    SPDA = 0x00F7
 else:
-    print(f"{fgColors.bYellow}'DATA_TYPE' not recognized - assume you mean DSUM for this measurement.{fgColors.endc}")
-    SPDA = 0x0100
+    print(f"{fgColors.bYellow}'DATA_TYPE' not recognized - must be DSUM or ZPP.{fgColors.endc}")
+    sys.exit()
 icp.setCtlPacket(bank=packetBank.BANKA, SCS=SCSA, SCD=SCDA, SPD=SPDA)
 
 # -----------------------------------------------
@@ -276,23 +235,15 @@ sectionPrint("configure the Controller FSM")
 #       To get nAcqSamplesHistory, acquisition must run continuously to get samples before the trigger.
 nAcqSamplesFast = 0
 nAcqSamplesSlow = 128
-#nAcqSamplesSlow = 64
-#nAcqSamplesSlow = 20
 nAcqSamples = nAcqSamplesFast + nAcqSamplesSlow
 nAcqSamplesHistory = 28
-#nAcqSamplesHistory = 14
-#nAcqSamplesHistory = 0
 print(f"nAcqSamplesFast     = {nAcqSamplesFast}")
 print(f"nAcqSamplesSlow     = {nAcqSamplesSlow}")
 print(f"nAcqSamples         = {nAcqSamples}")
 print(f"nAcqSamplesHistory  = {nAcqSamplesHistory}")
 print("")
 # depending if ACQ is fast or slow or both, this is the trigger to start the acquistion
-#FSM_ACQ_TRG_MODE = 2    # NOTE CHANGE HERE
-FSM_ACQ_TRG_MODE = 5    # NOTE CHANGE HERE -----------
-#FSM_ACQ_TRG_MODE = 6    # NOTE CHANGE HERE
-#FSM_ACQ_TRG_MODE = 1    # NOTE CHANGE HERE
-                        # 0 = FLAG,
+FSM_ACQ_TRG_MODE = 1    # 0 = FLAG,
                         # 1 = COINCIDENCE_OK
                         # 2 = EXTERNAL 1
                         # 3 = EXTERNAL 2
@@ -415,8 +366,7 @@ client.runPrint(f"ctlCfg -a FST0 -r 0x{fst0Reg:04x} -g")
 FSM_ACQ_CNL_SEND_RSTN = 0       # 1 = when cancelling the acquisition, sent a RSTN command to the PDCs
 FSM_ACQ_CANCEL_MODE = 0         # bitwise setting to set the conditions on which to sent a RSTN command to the PDCs
 FSM_ACQ_OVERLAP = 0             # number of samples to overlap while sending the next command
-FSM_ACQ_CMD_MODE = 7            # 0 = FLAG # NOTE change here
-#FSM_ACQ_CMD_MODE = 2            # 0 = FLAG # NOTE change here
+FSM_ACQ_CMD_MODE = 7            # 0 = FLAG
                                 # 1 = COINCIDENCE_OK
                                 # 2 = EXTERNAL_1
                                 # 3 = EXTERNAL_2
@@ -465,8 +415,7 @@ icp.preparePDC()
 # NOTE: Default icp.nSpad is 64 (2D CMOS SPAD)
 #       To user all of the 4096 pixels,
 #       uncomment the following line
-n_spad_in = os.getenv("N_SPAD", default=4096)
-totSpads = int(n_spad_in) if (0<int(n_spad_in))and(int(n_spad_in)<=4096) else 4096 #ensure value is between 0 and 4096
+totSpads = int(os.environ["N_SPAD"]) if (0<int(os.environ["N_SPAD"]))and(int(os.environ["N_SPAD"])<=4096) else 4096
 icp.nSpad = totSpads
 
 # --------------------------
@@ -493,16 +442,16 @@ PDC_SETTING.PIXL = PIXL
 
 # === TIME REGISTER ===
 print("\n=== TIME REGISTER ===")
-HOLD_TIME = float(os.getenv("HOLD_TIME_NS", default=250.0))
-RECH_TIME = float(os.getenv("RECH_TIME_NS", default=10.0))
-FLAG_TIME = float(os.getenv("FLAG_TIME_NS", default=2.0))
+HOLD_TIME = float(os.environ.get("HOLD_TIME_NS", default=50.0))
+RECH_TIME = float(os.environ.get("RECH_TIME_NS", default=10.0))
+FLAG_TIME = float(os.environ.get("FLAG_TIME_NS", default=2.0))
 client.runPrint(f"pdcTime --hold {HOLD_TIME} --rech {RECH_TIME} --flag {FLAG_TIME} -g")
 PDC_SETTING.TIME = client.runReturnSplitInt('pdcTime -g')
 
 # === ANLG REGISTER ===
 print("\n=== ANLG REGISTER ===")
 #ANLG = 0x0000; # disabled
-ANLG = 0x0001; # full amplitude (~30 µA)
+ANLG = 0x001F; # full amplitude (~30 µA)
 client.runPrint(f"pdcCfg -a ANLG -r 0x{ANLG:04x} -g")  # set analog monitor
 PDC_SETTING.ANLG = ANLG
 
@@ -514,13 +463,10 @@ PDC_SETTING.ANLG = ANLG
 # === STHL REGISTER ===
 print("\n=== STHL REGISTER ===")
 EN_SUM_TH = 1   # enables both sum threshold registers STHH and STHL
-# NOTE: change SUM_THL to optimize the trigger rate of events. A higher value filters the DCR, but might remove valid events
-SUM_THL = 6 # number of photon to exceed in digital sum to raise SUM_GT
+SUM_THL = 1 # number of photon to exceed in digital sum to raise SUM_GT
 STHL = ((EN_SUM_TH&0x1)<<15) | (SUM_THL&0x1FFF)
 client.runPrint(f"pdcCfg -a STHL -r 0x{STHL:04x} -g")  # set sum threshold low
 PDC_SETTING.STHL = STHL
-# NOTE: 100 TCR max per pixel on 2500 pixels = 250 000 cps = 1 count each 4 us.
-#       With a hold off of 250 us, STHL must be > 16
 
 # === XXXX REGISTER ===
 # skipping registers ACQA to DBGC
@@ -548,7 +494,6 @@ print("\n=== OUTD REGISTER ===")
 #DATA_FUNC = OUT_MUX.FLAG
 #DATA_FUNC = OUT_MUX.TRG
 DATA_FUNC = OUT_MUX.DATA
-#DATA_FUNC = OUT_MUX.SUM_GT
 #DATA_FUNC = OUT_MUX.VSS
 #DATA_FUNC = OUT_MUX.VDD
 OUTD = (DATA_FUNC & 0x1F) + ((DATA_FUNC & 0x1F)<<6)
@@ -557,16 +502,11 @@ PDC_SETTING.OUTD = OUTD
 
 # === OUTF REGISTER ===
 print("\n=== OUTF REGISTER ===")
-if analogOnly:
-    # in analog only mode, use FLAG pin as FLAG fonction
-    FLAG_FUNC = OUT_MUX.FLAG
-else:
-    # in digital mode, use FLAG pin as SUM_TH_GT function
-    #FLAG_FUNC = OUT_MUX.FLAG
-    #FLAG_FUNC = OUT_MUX.TRG
-    FLAG_FUNC = OUT_MUX.SUM_GT # NOTE: use this setting to set flag output as sum greater than
-    #FLAG_FUNC = OUT_MUX.VSS
-    #FLAG_FUNC = OUT_MUX.VDD
+#FLAG_FUNC = OUT_MUX.FLAG
+#FLAG_FUNC = OUT_MUX.TRG
+FLAG_FUNC = OUT_MUX.SUM_GT # NOTE: use this setting to set flag output as sum greater than
+#FLAG_FUNC = OUT_MUX.VSS
+#FLAG_FUNC = OUT_MUX.VDD
 OUTF = (FLAG_FUNC & 0x1F) + ((FLAG_FUNC & 0x1F)<<6)
 client.runPrint(f"pdcCfg -a OUTF -r 0x{OUTF:04x} -g")
 PDC_SETTING.OUTF = OUTF
@@ -603,6 +543,29 @@ print("\n=== PDC SETTINGS ===")
 PDC_SETTING.print()
 
 
+"""# ------------------------
+# --- enable PDC SPADs ---
+# ------------------------
+sectionPrint("enable PDC SPADs")
+# NOTE: run command pdcSpad --help on Zynq to get more options to enable SPADs
+# NOTE: This method enables N_SPAD_TO_ENABLE for each PDC from the center.
+N_SPAD_TO_ENABLE = 64
+if N_SPAD_TO_ENABLE>64: #max value
+    N_SPAD_TO_ENABLE=64
+client.runPrint(f"pdcSpad --verbose 3 --ncenter {N_SPAD_TO_ENABLE} --mode NONE")
+
+# NOTE: To enable different SPADs for each PDC, use the following method:
+# NOTE: Use another script to identify screamers and disable them.
+#       Here, it is hardcoded as an example, user must find the appropriated values for each Head board.
+#client.runPrint(f"pdcSpad --verbose 4 --pattern {0xdfdff7ffffffffff} --spdc 0 --mode NONE;") # PDC0
+#client.runPrint(f"pdcSpad --verbose 4 --pattern {0xeffeffbeffffffff} --spdc 1 --mode NONE;") # PDC1
+#client.runPrint(f"pdcSpad --verbose 4 --pattern {0xffffffffffffffff} --spdc 2 --mode NONE;") # PDC2
+#client.runPrint(f"pdcSpad --verbose 4 --pattern {0xffffffffffffffff} --spdc 3 --mode NONE;") # PDC3
+#client.runPrint(f"pdcSpad --verbose 4 --pattern {0xffbfdffd97ffddff} --spdc 4 --mode NONE;") # PDC4
+#client.runPrint(f"pdcSpad --verbose 4 --pattern {0xffbbdfffffffdfff} --spdc 5 --mode NONE;") # PDC5
+#client.runPrint(f"pdcSpad --verbose 4 --pattern {0xffff7bfffff7efff} --spdc 6 --mode NONE;") # PDC6
+#client.runPrint(f"pdcSpad --verbose 4 --pattern {0xff7ffbdfbfeffff3} --spdc 7 --mode NONE;") # PDC7"""
+
 # ------------------------
 # --- enable PDC SPADs ---
 # ------------------------
@@ -614,6 +577,7 @@ maskCX = 32 # center position in X axis (from wirebond 1 to wirebond 32)
 maskCY = 32 # center position in Y axis (from CMOS pads to 2D SPADs)
 maskX = 64 # width in X axis (used to match scintillator size)
 maskY = 64 # width in Y axis (used to match scintillator size)
+
 
 # load TCR CSV file into a pandas dataframe
 dfTcr = pd.read_csv(tcrFile, header=0, sep=';')
@@ -632,47 +596,16 @@ for iPdc in range(icp.nPdcMax):
         try:
             # NOTE: specify here a pattern to place on the PDCs
             # square/rectangle is the default
-            # begin with all pixels ENABLED (1)
             pixEnMask[maskCX-maskX//2:maskCX+maskX//2, maskCY-maskY//2:maskCY+maskY//2] = 1
 
-            # checker pattern can help for crosstalk analysis
-            checkerPattern=False
-            if checkerPattern:
-                pixEnMask[maskCX-maskX//2:maskCX+maskX//2, maskCY-maskY//2:maskCY+maskY//2] = 1
-                pixEnChMask = np.zeros((pixMap.TOP_NX_PIX, pixMap.TOP_NY_PIX), dtype=int)
-                pitch = 2
-                pixEnChMask[pitch//2::pitch, ::pitch] = 1
-                pixEnChMask[::pitch, pitch//2::pitch] = 1
-                pixEnMask = np.logical_and(pixEnMask, pixEnChMask)
-
-            # NOTE: here is an example to manually DISABLED (0) some pixels specific for each PDC
-            # NOTE: User can use different masks for each PDC here
-            
-            #AS head 62
-            #if iPdc == 0:
-            #    #pixEnMask[maskCX-maskX//2:maskCX+maskX//2, maskCY-maskY//2:maskCY+maskY//2] = 0
-            #    pixEnMask[0:63, 0:63] = 0
-                pixEnMask[::,::] = 1
-            if iPdc == 1:
-                #pixEnMask[maskCX-maskX//2:maskCX+maskX//2, maskCY-maskY//2:maskCY+maskY//2] = 0
-                pixEnMask[::,58:] = 0
-            if iPdc == 2:
-                #pixEnMask[maskCX-maskX//2:maskCX+maskX//2, maskCY-maskY//2:maskCY+maskY//2] = 0
-                pixEnMask[0:15, ::] = 0
-                pixEnMask[::, 59:] = 0
-            if iPdc == 3:
-                #pixEnMask[maskCX-maskX//2:maskCX+maskX//2, maskCY-maskY//2:maskCY+maskY//2] = 0
-                pixEnMask[0:16, ::] = 0
-            
             # NOTE: convertPixArrayToReg function from python module pdcSpadFunctions
             # supported methods: constant, average, percent, medianFactor, medianToMin
-            #get desired screamer ID method
+            # Here, keeping only SPADs with TCR below 100 cps (thConst)
             screamer_methods = ['constant', 'average', 'percent', 'medianFactor', 'medianToMin']
             screamer_method = os.getenv('SCREAMER_METHOD', default="constant")
             if screamer_method not in screamer_methods:
                 print(f"{fgColors.bYellow}WARNING: Selected screamer method '{screamer_method}' but this is unallowed. Options are {screamer_methods}. Moving ahead with screamer method 'constant'{fgColors.endc}")
             screamer_parameter = pdcSpadFunctions.getScreamerValue(screamer_method)
-            plotVal = os.path.splitext(dsumCsvFile)[0]+f"_pixelMap_{iPdc}.png" if strToBool(os.getenv("SAVE_PLOT")) else ""
             regs = pdcSpadFunctions.convertPixArrayToReg(
                         pixArray=dfTcr[f"SPAD_TCR{iPdc}"],
                         thMethod=getattr(pdcSpadFunctions.ThreshMethod, screamer_method),
@@ -680,11 +613,11 @@ for iPdc in range(icp.nPdcMax):
                         pixEnMask = pixEnMask,
                         returnAnalysis=False,
                         log=False,  # set log to True to print the values of the registers to program 
-                        plot=plotVal, 
+                        plot=strToBool(os.environ["SAVE_PLOT"]), 
                         **(screamer_parameter or {})
                         )
             # set plotMask to True to see the pixel mask (pixEnMask) not considering the TCR
-            plotMask = True #AS 
+            plotMask = False
             if plotMask:
                 # Create a custom colormap from green to red
                 # You can define the colors at specific points along the colormap
@@ -693,7 +626,7 @@ for iPdc in range(icp.nPdcMax):
                 plt.ion()
                 plt.figure()
                 plt.imshow(pixEnMask.T, cmap=cmap, origin='lower', aspect="equal")
-                #plt.show()
+                plt.show()
 
             # enable the proper SPADs
             icp.cfgAllPixRegs(regs, iPdc)
@@ -710,14 +643,12 @@ pixelStatsFile.close()
 # done with all the PDCs, make sure to return the configuration to all PDCs
 client.runPrint(f"ctlCfg -a CFGS -r 0x0000 -g") # disable single configuration
 
-
 # ---------------------------------------
 # --- return PDCs to acquisition mode ---
 # ---------------------------------------
 sectionPrint("return PDCs to acquisition mode")
 client.runPrint("ctlCmd -c MODE_ACQ")
 
-#
 # ---------------------------------------------------------
 # --- configure streamManager to maximize the bandwidth ---
 # ---------------------------------------------------------
@@ -732,215 +663,35 @@ TIMEOUT_STR = "-T 1 --sec"
 client.runPrint(f"streamManager --thresh {TLAST_THRESHOLD} {TIMEOUT_STR}")
 
 # ---------------------------------------------------
-# ---  configure the Controller sum TH interface  ---
-# ---------------------------------------------------
-sectionPrint("configure the Controller sum TH interface")
-client.runPrint(f"ctlCfg -a ITF2 -r 0b00000001 -g")
-
-# ---------------------------------------------------
 # --- configure the Controller coincidence module ---
 # ---------------------------------------------------
 sectionPrint("configure the Controller coincidence module")
 # configure AUX0 out (OUT1 on PCB) to COINC_OK
-#client.runPrint(f"auxOut --channel 0 --func 5 -g")
+client.runPrint(f"auxOut --channel 0 --func 5 -g")
 
 # select which PDCs to include into the coincidence
 client.runPrint(f"ctlCfg -a COI0 -r 0x{icp.pdcEnUser&0xFFFF:04x} -g")
 client.runPrint(f"ctlCfg -a COI1 -r 0x{(icp.pdcEnUser>>16)&0xFFFF:04x} -g")
 
 # set the width of the coincidence windows (in clock cycle period)
-COIN_WLEN = int(os.getenv("COIN_WLEN", default=1))# coincidence windows of X clock cycles
+COIN_WLEN = int(os.environ.get("COIN_WLEN", default=1))# coincidence windows of X clock cycles
 client.runPrint(f"ctlCfg -a COIW -r 0x{COIN_WLEN&0x03FF:04x} -g")
 
 # set the coincidence thresholds
-NCH_TH = int(os.getenv("COIN_NCH_TH", default=1))# number of PDC channel for a coincidence
-NUM_BANK = int(os.getenv("COIN_NUM_BANK", default=1))# number of hits per PDC   
+NCH_TH = int(os.environ.get("COIN_NCH_TH", default=3))# number of PDC channel for a coincidence
+NUM_BANK = int(os.environ.get("COIN_NUM_BANK", default=1))# number of hits per PDC   
 cothReg = ((NCH_TH&0x7F)<<8) | (NUM_BANK&0x7)
 client.runPrint(f"ctlCfg -a COTH -r 0x{cothReg:04x} -g")
 
 
 # ---------------------------------------
-# --- configure strobe timer
+# --- notify user of manual steps
 # ---------------------------------------
-sectionPrint("configure strobe timer")
-client.runPrint(f"set-ctl-tmr-prd FREQ=10e3")
-
-# ---------------------------------------
-# --- configure auxiliary ios
-# ---------------------------------------
-sectionPrint("configure auxiliary ios")
-#client.runPrint("auxOut --ch 1 --func 0x5 -g") # COINC_OK
-#client.runPrint("auxOut --ch 1 --func 0x8 -g") # SUM_TH_OR
-##client.runPrint("auxOut --ch 1 --func 0x3 -n 0 -g") # AUX_IN0
-client.runPrint("auxOut --ch 0 --func 23 -n 0 -g") # STRB_TMR
-client.runPrint("auxOut --ch 1 --func 23 -n 0 -g") # STRB_TMR
-#client.runPrint("auxIn --func 0 --channel 4 -g") # FSM_EXT1 = AUXI0
-client.runPrint("auxIn --func 0 --channel 2 -g") # FSM_EXT1 = STRB_TMR
-
-# ---------------------------------------
-# --- ORNL SPECIFIC - Set up power supply settings
-# ---------------------------------------
-
-# BK Precision to supply -250V substrate voltage, resource_bkps
-# Keysight to supply -25V SPAD bias voltage, resource_ps
-def checkSystHealth(healthbytes):
-
-    if healthbytes=="000000" or healthbytes=="000001":
-        #Require all systems off, including over-current and over-voltage protections
-        print('All good')
-        return 
-    elif healthbytes=="000009": #output is on
-        print("Output is on - turn off to begin")
-        inst_bkps.write("OUT OFF")
-        return
-    elif healthbytes=="0000A1": #ovp and ovc still set
-        print("Over-current and -voltage protections are set - turn off to begin")
-        inst_bkps.write("PROT:OCP OFF")
-        inst_bkps.write("PROT:OVP OFF")
-        return
-    elif healthbytes=="0000A9": #output, ovp and ovc still set
-        print("Settings remain from previous run - turn off to begin")
-        inst_bkps.write("OUT OFF")
-        inst_bkps.write("PROT:OCP OFF")
-        inst_bkps.write("PROT:OVP OFF")
-        return
-    else:
-        print(f"Failed system health: {healthbytes}")
-        del zynq
-        sys.exit()
-
-###Identify supplies
-rm = pyvisa.ResourceManager('@py')
-try:
-    serialID_bkps = glob.glob('/dev/serial/by-id/*CP2102*')[0]
-except IndexError:
-    print('Cannot find a device with the expected BKPS ID#')
-    del zynq
-    sys.exit()
-try:
-    serialID_dcps = glob.glob('/dev/serial/by-id/*Prolific*')[0]
-except IndexError:
-    print('Cannot find a device with the expected Keysight ID#')
-    del zynq
-    sys.exit()
-resource_bkps = f"ASRL/dev/{os.readlink(serialID_bkps)[-7:]}::INSTR"
-resource_dcps = f"ASRL/dev/{os.readlink(serialID_dcps)[-7:]}::INSTR"
-
-foundResources = rm.list_resources()
-if resource_bkps not in foundResources:
-    print('Could not find BK device in expected location - try unplugging')
-    del zynq
-    sys.exit()
-if resource_dcps not in foundResources:
-    print('Could not find Keysight device in expected location - try unplugging')
-    del zynq
-    sys.exit()
-
-###Set up BK Precision to supply substrate voltage
-print('opening resource: ' + resource_bkps)
-inst_bkps = rm.open_resource(resource_bkps, write_termination = '\n',read_termination='\r\n',baud_rate=57600)
-print(f'BKPS Device: {inst_bkps.query("*IDN?")}')
-
-#clear status and errors
-#inst_bkps.write("*CLS")
-systHealth = inst_bkps.query("STATUS?")[:6]
-checkSystHealth(systHealth)
-
-#Set over current and over voltage protections
-inst_bkps.write("PRO:OCP:LEV 0.00005") #50 uA current limit
-inst_bkps.write("PRO:OVP:LEV 260.0") #260 V voltage limit
-print('Set over-current and over-voltage protection limits')
-inst_bkps.write("PROT:OCP ON")
-inst_bkps.write("PROT:OVP ON")
-
-###Set up Keysight to supply bias voltage
-print('opening resource: ' + resource_dcps)
-inst_dcps = rm.open_resource(resource_dcps, write_termination = '\n',read_termination='\n',baud_rate=9600)
-print(f'DCPS Device: {inst_dcps.query("*IDN?")}')
-systHealth = inst_dcps.query("*TST?")
-if '0' in systHealth:
-    print('All good')
-    inst_dcps.write("SYST:BEEP")
-else:
-    print(f"Failed system health: {systHealth}")
-    del zynq
-    sys.exit()
-
-#Ensure that the output is not on while setting proper values
-if int(inst_dcps.query("OUTP?")) == 1:
-    print("output is on - turn it off")
-    inst_dcps.write("OUTP OFF")
-#Set over current and over voltage protections
-spadBiasV = int(os.environ.get("SPAD_BIAS_V", default=25))
-inst_dcps.write(f"VOLT:PROT {spadBiasV+0.5}")
-
-#Set over current and over voltage protections
-inst_dcps.write("VOLT:PROT 25.5")
-
-# ---------------------------------------
-# --- Notify user of manual steps
-# ---------------------------------------
-def powerRampDown():
-    # ORNL SPECIFIC - turn off power 
-    print("Turn off power supplies")
-    print("Keysight ramping down....")
-    for vDown in range(25,-1,-1):
-        time.sleep(0.5)
-        inst_dcps.write(f"APPL {float(vDown)}, 0.1")
-    print("Keysight HV is turned off")
-
-    print(f"Run over - turn off Keysight output")
-    inst_dcps.write("APPL 0.0, 0.0")
-    inst_dcps.write("OUTP OFF")
-    inst_dcps.close()
-    print("BK ramping down....")
-    for vDown in range(250,-1,-10):
-        time.sleep(0.5)
-        inst_bkps.write(f"SOUR:VOLT {float(vDown)}")
-    print("BK HV is turned off")
-
-    print(f"Run over - turn off BK output")
-    inst_bkps.write("SOUR:VOLT 0.0")
-    inst_bkps.write("OUT OFF")
-    inst_bkps.write("PROT:OCP OFF")
-    inst_bkps.write("PROT:OVP OFF")
-    inst_bkps.close()
-    return
-
 try:
     print(f"{fgColors.bYellow}Apply HV here{fgColors.endc}")
-    if os.environ.get("BATCH_MODE") is None:
-        #ORNL SPECIFIC - turn on power supplies
-        input("Apply substrate bias?")
-        #Ramp output voltage to 250 in 10V steps
-        inst_bkps.write("OUT ON")
-
-        print("BK HV Ramping up....")
-        for vUp in range(10, 250+1, 10):
-            time.sleep(0.5)
-            if vUp==10: #begin ramp slowly
-                for vUpFine in range(10):
-                    inst_bkps.write(f"SOUR:VOLT {float(vUpFine)}")
-                    time.sleep(0.5)
-            inst_bkps.write(f"SOUR:VOLT {float(vUp)}")
-        print("BK HV is supplied")
-
-        input("Apply SPAD bias?")
-        #Ramp output voltage to 25 in 1V steps
-        inst_dcps.write("APPL 0.0, 0.0")
-        inst_dcps.write("OUTP ON")
-
-        print("Keysight HV Ramping up....")
-        for vUp in range(spadBiasV+1):
-            time.sleep(0.5)
-            inst_dcps.write(f"APPL {float(vUp)}, 0.1")
-        print("Keysight HV is supplied")
-
-        input("Press [enter] key to continue")
+    input("Press [enter] key to continue")
 except KeyboardInterrupt:
     print("\nKeyboard Interrupt: exit program")
-    powerRampDown()
-    del zynq #stop dataReader and hexRead
     sys.exit()
 
 
@@ -948,12 +699,8 @@ except KeyboardInterrupt:
 # --- start Controller FSM acquisition
 # ------------------------------------------------
 sectionPrint("start Controller FSM acquisition")
-if not analogOnly:
-    client.runPrint(f"ctlCfg -a FSMM -r 0x{fsmmReg|0x3:04x} -g"); # starts the FSM
+client.runPrint(f"ctlCfg -a FSMM -r 0x{fsmmReg|0x3:04x} -g"); # starts the FSM
 
-
-# get the total execution time of the test
-test_start_time = time.time()
 
 # ------------------------
 # --- ready to operate ---
@@ -961,34 +708,13 @@ test_start_time = time.time()
 print("\n=== READY TO OPERATE ===")
 # NOTE: Implement here a specific routine
 try:
-    #input("Press [enter] key to exit")
-    measurementTime = float(os.getenv("MEAS_TIME", default=30))
-    print(f"Measuring for {measurementTime}s")
-    time.sleep(measurementTime)
+    print(f"{fgColors.bYellow}Turn off HV here{fgColors.endc}")
+    input("Press [enter] key to exit")
 except KeyboardInterrupt:
     print("\nKeyboard Interrupt: exit program")
 
 finally:
-    test_stop_time = time.time()
-
-    # ORNL SPECIFIC - turn off power 
-    powerRampDown()
-
     client.runPrint("stop")
-    del zynq
-
-    # total execution time
-    test_duration_sec = test_stop_time-test_start_time
-    print(f"{fgColors.bBlue}Test duration:\n  {test_duration_sec:.3f} seconds \n  {test_duration_sec/60:.3f} min \n  {test_duration_sec/3600:.3f} hours{fgColors.endc}")
-
-    # WARNING remove empty file at the end of the execution
-    #print("dsumCsvFile" in locals(),  os.path.exists(dsumCsvFile), os.path.getsize(dsumCsvFile) == 0)
-    if "dsumCsvFile" in locals() and os.path.exists(dsumCsvFile) and os.path.getsize(dsumCsvFile) == 0:
-        os.remove(dsumCsvFile)
-        if "pixelStatsFileName" in locals() and os.path.exists(pixelStatsFileName):
-            # remove pixel stats if file dsumCsvFile is empty
-            os.remove(pixelStatsFileName)
-            
     sys.exit()
 
 

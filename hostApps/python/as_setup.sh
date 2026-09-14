@@ -18,6 +18,10 @@ export HOLD_TIME_NS=250.0
 export RECH_TIME=10.0
 export FLAG_TIME=2.0
 
+#DSUM MODULE PARAMS (for dsum module of hexReader)
+export DSUM_DATA_TYPE="NZKF" #"all", "NZ", "NZKF", "dt", "max"
+export BIN_IDX_MODE="time" #time, continuous, frame 
+
 #COINCIDENCE PARAMS
 export COIN_WLEN=1
 export COIN_NCH_TH=1
@@ -33,4 +37,3 @@ export SCREAMER_FACTOR=1.5 #for "medianFactor"
 #SCRIPT SPECIFIC PARAMS
 export RAD_SOURCE_NAME="test"
 export TCR_FILE="/home/i8x/PDCv2-data/TCR/as_getSpadTcrUsingFlag/20260827_17h07m11_TCR_H62_250ms_25V_PDC0_PDC1_PDC2_PDC3_darkbox_coverOff_diamond.csv"
-export CSV_FILE="/home/i8x/PDCv2-data/DSUM_CSV_3D_test/20260827_13h54m12_as_getDsumRad_H62_NZ_time_25V.csv"
