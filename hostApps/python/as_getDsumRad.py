@@ -148,7 +148,7 @@ if not os.path.exists(CSV_DATA_DIR):
     os.makedirs(CSV_DATA_DIR)
 DATE_STR = datetime.datetime.now().strftime("%Y%m%d_%Hh%Mm%S")
 # DATA_TYPE: "all", "NZ", "NZKF", "dt", "max"
-DATA_TYPE = "NZ"
+DATA_TYPE = "NZKF"
 BIN_IDX_MODE = "time" # "continuous", "frame", "time"
 try:
     extraName = "_"+os.getenv("FNAME") if len(os.getenv("FNAME"))>0 else ""
@@ -612,7 +612,6 @@ maskCY = 32 # center position in Y axis (from CMOS pads to 2D SPADs)
 maskX = 64 # width in X axis (used to match scintillator size)
 maskY = 64 # width in Y axis (used to match scintillator size)
 
-
 # load TCR CSV file into a pandas dataframe
 dfTcr = pd.read_csv(tcrFile, header=0, sep=';')
 
@@ -630,6 +629,7 @@ for iPdc in range(icp.nPdcMax):
         try:
             # NOTE: specify here a pattern to place on the PDCs
             # square/rectangle is the default
+            # begin with all pixels ENABLED (1)
             pixEnMask[maskCX-maskX//2:maskCX+maskX//2, maskCY-maskY//2:maskCY+maskY//2] = 1
 
             # checker pattern can help for crosstalk analysis
@@ -642,34 +642,44 @@ for iPdc in range(icp.nPdcMax):
                 pixEnChMask[::pitch, pitch//2::pitch] = 1
                 pixEnMask = np.logical_and(pixEnMask, pixEnChMask)
 
-            # NOTE: here is an example to manually disable some pixels specific for each PDC
+            # NOTE: here is an example to manually DISABLED (0) some pixels specific for each PDC
             # NOTE: User can use different masks for each PDC here
-            """
-            if iPdc == 0:
-                #pixEnMask[maskCX-maskX//2:maskCX+maskX//2, maskCY-maskY//2:maskCY+maskY//2] = 0
-                pixEnMask[43, 41] = 0
-
+            
+            #AS head 62
+            #if iPdc == 0:
+            #    #pixEnMask[maskCX-maskX//2:maskCX+maskX//2, maskCY-maskY//2:maskCY+maskY//2] = 0
+            #    pixEnMask[0:63, 0:63] = 0
+                pixEnMask[::,::] = 1
             if iPdc == 1:
                 #pixEnMask[maskCX-maskX//2:maskCX+maskX//2, maskCY-maskY//2:maskCY+maskY//2] = 0
-                pixEnMask[22, 53] = 0
-
+                pixEnMask[::,58:] = 0
             if iPdc == 2:
                 #pixEnMask[maskCX-maskX//2:maskCX+maskX//2, maskCY-maskY//2:maskCY+maskY//2] = 0
-                pixEnMask[32, 32] = 0
-
+                pixEnMask[0:15, ::] = 0
+                pixEnMask[::, 59:] = 0
             if iPdc == 3:
                 #pixEnMask[maskCX-maskX//2:maskCX+maskX//2, maskCY-maskY//2:maskCY+maskY//2] = 0
-                pixEnMask[54, 27] = 0
-            """
+                pixEnMask[0:16, ::] = 0
+            
             # NOTE: convertPixArrayToReg function from python module pdcSpadFunctions
             # supported methods: constant, average, percent, medianFactor, medianToMin
             # Here, keeping only SPADs with TCR below 100 cps (thConst)
             constant_threshold = float(os.getenv("SCREAMER_THRESHOLD")) if os.getenv("SCREAMER_THRESHOLD") is not None else 100.0
-            plotVal = CSV_DATA_DIR+f"/pixelMap_{iPdc}.png" if strToBool(os.getenv("SAVE_PLOT")) else ""
+            plotVal = os.path.splitext(dsumCsvFile)[0]+f"_pixelMap_{iPdc}.png" if strToBool(os.getenv("SAVE_PLOT")) else ""
+            """regs = pdcSpadFunctions.convertPixArrayToReg(
+                                                            pixArray=dfTcr[f"SPAD_TCR{iPdc}"],
+                                                            thMethod=pdcSpadFunctions.ThreshMethod.constant,
+                                                            thConst=constant_threshold,
+                                                            thOp=pdcSpadFunctions.ThreshOp.le,
+                                                            pixEnMask = pixEnMask,
+                                                            returnAnalysis=False,
+                                                            log=False,  # set log to True to print the values of the registers to program 
+                                                            plot=plotVal
+                                                            )"""
             regs = pdcSpadFunctions.convertPixArrayToReg(
                         pixArray=dfTcr[f"SPAD_TCR{iPdc}"],
-                        thMethod=pdcSpadFunctions.ThreshMethod.constant,
-                        thConst=constant_threshold,
+                        thMethod=pdcSpadFunctions.ThreshMethod.percent,
+                        thPct=90.,
                         thOp=pdcSpadFunctions.ThreshOp.le,
                         pixEnMask = pixEnMask,
                         returnAnalysis=False,
@@ -677,7 +687,7 @@ for iPdc in range(icp.nPdcMax):
                         plot=plotVal
                         )
             # set plotMask to True to see the pixel mask (pixEnMask) not considering the TCR
-            plotMask = False 
+            plotMask = True #AS 
             if plotMask:
                 # Create a custom colormap from green to red
                 # You can define the colors at specific points along the colormap
@@ -975,7 +985,6 @@ finally:
     print(f"{fgColors.bBlue}Test duration:\n  {test_duration_sec:.3f} seconds \n  {test_duration_sec/60:.3f} min \n  {test_duration_sec/3600:.3f} hours{fgColors.endc}")
 
     # WARNING remove empty file at the end of the execution
-    print( os.path.exists(dsumCsvFile))
     #print("dsumCsvFile" in locals(),  os.path.exists(dsumCsvFile), os.path.getsize(dsumCsvFile) == 0)
     if "dsumCsvFile" in locals() and os.path.exists(dsumCsvFile) and os.path.getsize(dsumCsvFile) == 0:
         os.remove(dsumCsvFile)
