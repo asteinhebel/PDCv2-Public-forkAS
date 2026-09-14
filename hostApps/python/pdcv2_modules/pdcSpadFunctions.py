@@ -11,6 +11,7 @@
 #-- Revision 1.0 - File Created
 #-- Additional Comments:
 #----------------------------------------------------------------------------------
+import os
 import numpy as np
 from enum import IntEnum
 import matplotlib.pyplot as plt
