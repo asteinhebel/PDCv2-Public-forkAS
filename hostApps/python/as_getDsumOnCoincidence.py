@@ -711,12 +711,11 @@ client.runPrint(f"ctlCfg -a FSMM -r 0x{fsmmReg|0x3:04x} -g"); # starts the FSM
 print("\n=== READY TO OPERATE ===")
 # NOTE: Implement here a specific routine
 try:
-    #input("Press [enter] key to exit")
     print(f"Measuring for {measurementTime}s")
-    time.sleep(measurementTime)
+    for i in tqdm(range(measurementTime)):
+        time.sleep(1)
 except KeyboardInterrupt:
     print("\nKeyboard Interrupt: exit program")
-
 finally:
     client.runPrint("stop")
     sys.exit()

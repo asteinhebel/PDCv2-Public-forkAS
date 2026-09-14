@@ -26,6 +26,7 @@ import statistics
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import pyvisa, glob
+from tqdm import tqdm
 
 # custom modules
 from pdcv2_modules.fgColors import fgColors
@@ -75,7 +76,7 @@ if os.getenv("HEAD_ID") is not None:
 
 
 measurementTimeStr = os.getenv("MEAS_TIME", default=30)
-measurementTime = float(measurementTimeStr)
+measurementTime = int(measurementTimeStr)
 
 
 # NOTE: set environment variable RAD_SOURCE to specify
@@ -965,12 +966,11 @@ test_start_time = time.time()
 print("\n=== READY TO OPERATE ===")
 # NOTE: Implement here a specific routine
 try:
-    #input("Press [enter] key to exit")
     print(f"Measuring for {measurementTime}s")
-    time.sleep(measurementTime)
+    for i in tqdm(range(measurementTime)):
+        time.sleep(1)
 except KeyboardInterrupt:
     print("\nKeyboard Interrupt: exit program")
-
 finally:
     test_stop_time = time.time()
 
