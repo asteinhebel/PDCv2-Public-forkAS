@@ -71,6 +71,9 @@ if os.environ.get("HEAD_ID") is not None:
     print(f"Using head {headId}")
 
 
+measurementTimeStr = os.getenv("MEAS_TIME", default=30)
+measurementTime = float(measurementTimeStr)
+
 # NOTE: specify a TCR file (from getSpadTcrUSingFlag.py) to set which pixels to enable
 tcrFile = None # default value will throw an error
 if os.environ.get("TCR_FILE") is not None:
@@ -131,7 +134,7 @@ try:
     extraName = "_"+os.environ["FNAME"] if os.environ.get("FNAME") is not None else ""
 except TypeError:
     extraName = ""
-DATA_FILE_NAME = f"{DATE_STR}_{os.path.splitext(scriptName)[0]}_{headStr}{DATA_TYPE}_{BIN_IDX_MODE}{spadBiasStr}{extraName}.csv"
+DATA_FILE_NAME = f"{DATE_STR}_{os.path.splitext(scriptName)[0]}_{headStr}{DATA_TYPE}_{BIN_IDX_MODE}{spadBiasStr}_{measurementTimeStr}s{extraName}.csv"
 dsumCsvFile = os.path.join(CSV_DATA_DIR, DATA_FILE_NAME)
 
 # hexRead options 
@@ -708,8 +711,9 @@ client.runPrint(f"ctlCfg -a FSMM -r 0x{fsmmReg|0x3:04x} -g"); # starts the FSM
 print("\n=== READY TO OPERATE ===")
 # NOTE: Implement here a specific routine
 try:
-    print(f"{fgColors.bYellow}Turn off HV here{fgColors.endc}")
-    input("Press [enter] key to exit")
+    #input("Press [enter] key to exit")
+    print(f"Measuring for {measurementTime}s")
+    time.sleep(measurementTime)
 except KeyboardInterrupt:
     print("\nKeyboard Interrupt: exit program")
 

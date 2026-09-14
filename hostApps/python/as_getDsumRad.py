@@ -74,6 +74,10 @@ if os.getenv("HEAD_ID") is not None:
     print(f"Using head {headId}")
 
 
+measurementTimeStr = os.getenv("MEAS_TIME", default=30)
+measurementTime = float(measurementTimeStr)
+
+
 # NOTE: set environment variable RAD_SOURCE to specify
 #       the radiation source used for the measurement
 #radSource = "Co57"
@@ -157,7 +161,7 @@ try:
     extraName = "_"+os.getenv("FNAME") if len(os.getenv("FNAME"))>0 else ""
 except TypeError:
     extraName = ""
-DATA_FILE_NAME = f"{DATE_STR}_{os.path.splitext(scriptName)[0]}_{headStr}{DATA_TYPE}_{BIN_IDX_MODE}{spadBiasStr}{extraName}.csv"
+DATA_FILE_NAME = f"{DATE_STR}_{os.path.splitext(scriptName)[0]}_{headStr}{DATA_TYPE}_{BIN_IDX_MODE}{spadBiasStr}_{measurementTimeStr}s{extraName}.csv"
 dsumCsvFile = os.path.join(CSV_DATA_DIR, DATA_FILE_NAME)
 print(f"{fgColors.blue}Writing CSV to {dsumCsvFile}{fgColors.endc}")
 
@@ -962,7 +966,6 @@ print("\n=== READY TO OPERATE ===")
 # NOTE: Implement here a specific routine
 try:
     #input("Press [enter] key to exit")
-    measurementTime = float(os.getenv("MEAS_TIME", default=30))
     print(f"Measuring for {measurementTime}s")
     time.sleep(measurementTime)
 except KeyboardInterrupt:
