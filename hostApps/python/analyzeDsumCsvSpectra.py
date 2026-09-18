@@ -182,6 +182,19 @@ def getHoldoffNs(fileIn) -> float:
         holdoff = 250.0
     return holdoff
 
+def getScintTau(fileIn) -> float:
+    """
+    # infer scintillator decay constant (in ns) from measurement name
+    """
+    if 'lyso' in fileIn:
+        return 40.0
+    elif 'diamond' in fileIn:
+        return 10.0
+    elif 'ej276d' in fileIn:
+        return 35.0 #13, 35, 270 for gamma. 13. 59, 460 for neutron
+    else:
+        return 40.0
+
 # -----------------------------------------------
 # --- Extract number of events info
 # -----------------------------------------------
@@ -796,7 +809,7 @@ def getHoldOffFromDsum(dfIn, pdcIn, dfMaxFrameToUse=20000, method="all", tauClkC
             axPeak.legend()
             axPeak.set_title("find peaks")
             if not showPlot:
-                plt.savefig(outputDirectory+f"PDC{pdcIn}_peakFinder.png")
+                plt.savefig(outputDirectory+f"PDC{pdcIn}/peakFinder.png")
                 plt.clf()
 
 
@@ -822,7 +835,7 @@ def getHoldOffFromDsum(dfIn, pdcIn, dfMaxFrameToUse=20000, method="all", tauClkC
             axCorr.legend()
             axCorr.set_title("autocorrelation")
             if not showPlot:
-                plt.savefig(outputDirectory+f"PDC{pdcIn}_autocorr.png")
+                plt.savefig(outputDirectory+f"PDC{pdcIn}/autocorr.png")
                 plt.clf()
 
     if method in ["fit", "all"]:
@@ -875,7 +888,7 @@ def getHoldOffFromDsum(dfIn, pdcIn, dfMaxFrameToUse=20000, method="all", tauClkC
             axFit.legend()
             axFit.set_title("exponential decay fit")
             if not showPlot:
-                plt.savefig(outputDirectory+f"PDC{pdcIn}_autoFit.png")
+                plt.savefig(outputDirectory+f"PDC{pdcIn}/autoFit.png")
                 plt.clf()
 
     if method == "all":
@@ -1438,7 +1451,7 @@ def plotPsdFctEnergy(dfIn):
         axes[iAx].set_ylabel(f"PDC{iPdc}\nPSD")
         plt.tight_layout()
         if not showPlot:
-            plt.savefig(outputDirectory+f"PDC{iPdc}_psdVsEnergy.png")
+            plt.savefig(outputDirectory+f"PDC{iPdc}/psdVsEnergy.png")
             plt.clf()
 
     fig.savefig(outputDirectory+"psdVsEnergy_combined.png")
@@ -1868,7 +1881,7 @@ def getFramesByPdcIdxAndFrameIdx(dfIn, method:str, numFrames:int=None,
 # --- Function to plot a histogram
 # --- of a given column of the DataFrame
 # -----------------------------------------------
-def plotDfColHisto(dfIn, col) -> None:
+def plotDfColHisto(dfIn, col, name="") -> None:
     """
     # Plot a histogram from a DataFrame with the data at the specified column.
     # col -> name of the column to produce a histogram on.
@@ -1892,11 +1905,59 @@ def plotDfColHisto(dfIn, col) -> None:
     plt.ylabel("counts")
     plt.title(title)
     if not showPlot:
-        plt.savefig(outputDirectory+f"histogram_{col}.png")
-        plt.clf()
+        plt.savefig(outputDirectory+name+f"histogram_{col}.png")
+    plt.close()
+
+def plotDfColHistoPerPDC(dfIn, col) -> None:
+    """
+    # Create subset of df containing only entries from one PDC at a time. Call plotDfColHisto() individually for each PDC
+    # col -> name of the column to produce a histogram on.
+    """
+    for iPdc in range(4):
+        dfPDC = dfIn[dfIn['pdcIdx']==iPdc]
+        plotDfColHisto(dfPDC, col, name=f"PDC{iPdc}/")
+
+def getSharedHistBins(dfIn, col) -> list:
+    """
+    # Break dfIn into individual PDC entries. Consider each PDC to define common histogram bins
+    # col -> name of the column to produce a histogram on.
+    """
+    mins, maxs, maxBins = [],[],[]
+    for iPdc in range(len(np.unique(dfIn['pdcIdx']))):
+        maxBins.append(int(abs(max(dfIn[dfIn['pdcIdx']==iPdc][col])-min(dfIn[dfIn['pdcIdx']==iPdc][col]))))
+        mins.append(min(dfIn[col]))
+        maxs.append(max(dfIn[col]))
+
+    #replace maxBins that are too large
+    maxNumBins = 256
+    maxBins = [maxNumBins if i>maxNumBins else i for i in maxBins]
+
+    binArray = np.linspace(min(mins), max(maxs), max(maxBins))
+    return binArray
 
 
+def plotDfColHistoStack(dfIn, col, name="") -> None:
+    """
+    # Plot a stacked histogram from a DataFrame with the data at the specified column, grouped by PDC ID.
+    # col -> name of the column to produce a histogram on.
+    """
+    print(f"Processing {col}")
+    bins = getSharedHistBins(dfIn, col)
 
+    title = f"Stacked histogram of {col}"
+    plt.close(title)
+    plt.figure(title)
+    for iPdc in range(4):
+        plt.hist(dfIn[dfIn['pdcIdx']==iPdc][col], bins=bins, histtype="bar",
+             density=True, cumulative=False, label=f"PDC{iPdc}", stacked=True)
+    plt.legend(loc='best')
+    plt.yscale("log")
+    plt.xlabel(f"{col}")
+    plt.ylabel("counts")
+    plt.title(title)
+    if not showPlot:
+        plt.savefig(outputDirectory+name+f"histogram_stacked_{col}.png")
+    plt.close()
 # -----------------------------------------------
 # --- Function to plot frames from a subset
 # --- of a DataFrame
@@ -1965,13 +2026,8 @@ def plotDsumFrames(dfFramesGroup,
     for i, fig in enumerate(list(pdcDict.values())[0] for pdcDict in figDict.values()):
         fig.tight_layout()
         if not showPlot:
-            fig.savefig(outputDirectory+f"PDC{i}_dsum_compare.png")
+            fig.savefig(outputDirectory+f"PDC{i}/dsum_compare.png")
         
-
-
-
-
-
 # -----------------------------------------------
 # --- testing functions
 # -----------------------------------------------
@@ -2019,6 +2075,12 @@ if __name__ == "__main__":
             if not os.path.exists(outputDirectory):
                 #create folder if does not exist
                 os.mkdir(outputDirectory)
+            #create subfolders for later plots
+            if not os.path.exists(outputDirectory+"PDC0/"):
+                os.mkdir(outputDirectory+"PDC0/")
+                os.mkdir(outputDirectory+"PDC1/")
+                os.mkdir(outputDirectory+"PDC2/")
+                os.mkdir(outputDirectory+"PDC3/")
 
         # keep time reference at the beginning
         # NOTE: call this function to add entry in the execution time dictionary
@@ -2071,7 +2133,7 @@ if __name__ == "__main__":
 
         # setting the expected decay time of the scintillator
         # NOTE: in this example, LYSO has been used
-        SCINT_TAU_NS = 10#40
+        SCINT_TAU_NS = getScintTau(datafile) #assumes scintillator name in file name. If not, default to 40ns
         SCINT_TAU_CLK_CYCLES = int(round(SCINT_TAU_NS/DSUM_CLK_PRD_NS))
         print(f"Scintillator decay time (ns): {SCINT_TAU_NS} -> {SCINT_TAU_CLK_CYCLES} clock cycles")
 
@@ -2457,9 +2519,19 @@ if __name__ == "__main__":
             # NOTE: The histogram of some columns of the DataFrame make no sense.
             cols = ["dsum", "dt", "binIdx", "peakValue","dtPeak", "dsumLevel", "energy", "nAvail","dsumLin"]
             for col in cols:
-            #for col in dfKeep.columns:
+                #for col in dfKeep.columns:
                 plotDfColHisto(dfKeep, col)
             logExecutionTime("plotDfColHisto()")
+            colsPerPDC = cols
+            for col in colsPerPDC:
+                #for col in dfKeep.columns:
+                plotDfColHistoPerPDC(dfKeep, col)
+            logExecutionTime("plotDfColHistoPerPDC()")
+            colsToStack = cols
+            for col in colsToStack:
+                #for col in dfKeep.columns:
+                plotDfColHistoStack(dfKeep, col)            
+            logExecutionTime("plotDfColHistoStack()")
 
         # If figures are open, prevent the end of the script
         if plt.get_fignums() and showPlot:
