@@ -2043,10 +2043,10 @@ if __name__ == "__main__":
     datafile = os.environ.get("FILE_IN", None)
     try:
         if datafile is None:
-            datafile = input("Please specify here a '.csv' file to use for the analyse or\nuse 'FILE_IN' environment variable:\n")
-
-        # make sure the CSV file exists
-        if not os.path.isfile(datafile+".csv"):
+            datafile = input("Please specify here a file name to use for the analyse or\nuse 'FILE_IN' environment variable:\n")
+        if ".csv" in datafile: #correct naming scheme if a csv file directly was passed
+            datafile = datafile[:-4]
+        elif not os.path.isfile(datafile+".csv"): # make sure the CSV file exists
             print(f"{fgColors.red}ERROR: file does not exist:\n  {datafile}.csv{fgColors.endc}")
             sys.exit()
 
@@ -2321,7 +2321,7 @@ if __name__ == "__main__":
         # Extract a single frame from DataFrame dfKeep
         # supported values for method: "first", "last", "random", "loc", "iloc"
         dfFrame = getFramesByPdcIdxAndFrameIdx(dfKeep, method="random",
-                                               numFrames=1, pdcIdx=[0])
+                                               numFrames=1, pdcIdx=[0]) 
         logExecutionTime("getFramesByPdcIdxAndFrameIdx()")
 
         # -----------------------------------------------
