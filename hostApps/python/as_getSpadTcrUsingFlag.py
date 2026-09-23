@@ -150,13 +150,14 @@ SCDA = 0x0000
 # configure PDC_DATA_A
     # 0x0100 = DSUM
     # 0x00F7 = ZPP
-if os.getenv("DATA_TYPE", default="DSUM") is None:
-    print(f"{fgColors.bYellow}'DATA_TYPE' not recognized - must be DSUM or ZPP.{fgColors.endc}")
+data_type = os.getenv("DATA_TYPE", default="ZPP")
+if data_type is None:
+    print(f"{fgColors.bYellow}'DATA_TYPE' {data_type} not recognized - must be DSUM or ZPP. Did you set the environment variable? {fgColors.endc}")
     raise SystemExit
-elif os.getenv("DATA_TYPE") == "DSUM":
+elif data_type == "DSUM":
     print(f"{fgColors.bYellow}'DATA_TYPE'='DSUM'. Do you really mean this? Changing to ZPP. {fgColors.endc}")
     SPDA = 0x00F7
-elif os.getenv("DATA_TYPE") == "ZPP":
+elif data_type == "ZPP":
     SPDA = 0x00F7
 else:
     print(f"{fgColors.bYellow}'DATA_TYPE' not recognized - must be DSUM or ZPP.{fgColors.endc}")
@@ -740,9 +741,15 @@ class tcrPlotter:
         if not self.pdcValid[iPdc]:
             return 0
         if screamersEnabled:
-            return self.pdcTcrAll[iPdc]/(1.0*self.countValidSpads(iPdc))
+            try:
+                return self.pdcTcrAll[iPdc]/(1.0*self.countValidSpads(iPdc))
+            except ZeroDivisionError:
+                return 999999999999
         else:
-            return self.pdcTcrNS[iPdc]/(1.0*self.countEnabledSpads(iPdc))
+            try:
+                return self.pdcTcrNS[iPdc]/(1.0*self.countEnabledSpads(iPdc))
+            except ZeroDivisionError:
+                return 999999999999
 
     def getSpadMedTcr(self, iPdc):
         """
