@@ -6,7 +6,7 @@ export HEAD_ID=62
 export ANALOG_ONLY=False
 export FNAME="test"
 export SAVE_PLOT=True
-export MEAS_TIME=5
+export MEAS_TIME=10
 
 #PDC SETTING PARAMS
 export PDC_EN="0xF"
@@ -33,6 +33,7 @@ export SCREAMER_METHOD=constant #average, constant, percent, medianFactor, media
 export SCREAMER_THRESHOLD=100.0 #for "constant" 
 export SCREAMER_PERCENT=90.0 #for "percent"
 export SCREAMER_FACTOR=1.5 #for "medianFactor"
+export PDC_MASK="/home/i8x/PDCv2-data/pixelMasks/head62_diamond.npy"
 
 #SCRIPT SPECIFIC PARAMS
 export RAD_SOURCE_NAME="test"

@@ -613,12 +613,8 @@ PDC_SETTING.print()
 # ------------------------
 sectionPrint("enable PDC SPADs")
 
-# generate a pattern to select which SPADs to enable
-pixEnMask = np.zeros((pixMap.TOP_NX_PIX, pixMap.TOP_NY_PIX), dtype=int) # init an empty mask to set later
-maskCX = 32 # center position in X axis (from wirebond 1 to wirebond 32)
-maskCY = 32 # center position in Y axis (from CMOS pads to 2D SPADs)
-maskX = 64 # width in X axis (used to match scintillator size)
-maskY = 64 # width in Y axis (used to match scintillator size)
+# generate or load a pattern to select which SPADs to enable
+load_pixMask = os.environ.get("PDC_MASK")
 
 # load TCR CSV file into a pandas dataframe
 dfTcr = pd.read_csv(tcrFile, header=0, sep=';')
@@ -629,46 +625,67 @@ pixelStatsFile = open(pixelStatsFileName, 'w')
 defaultStdout = sys.stdout
 sys.stdout = systemHelper.Tee(defaultStdout, pixelStatsFile)
 
-# loop for each PDC
-for iPdc in range(icp.nPdcMax):
-    if ((icp.pdcEnUser >> iPdc) & 0x1) == 0x1:
-        print(f"{fgColors.blue}PDC{iPdc}:{fgColors.endc}")
-        # PDC is enabled, configure it
-        try:
+#Import or generate mask pattern - NOT INCLUDING SCREAMERS
+if os.path.exists(load_pixMask): #import mask if valid file given
+    print(f"{fgColors.blue}Importing pixel mask from {load_pixMask}{fgColors.endc}")
+    with open(load_pixMask, 'rb') as f:
+        pixEnMask0 = np.load(f)
+        pixEnMask1 = np.load(f)
+        pixEnMask2 = np.load(f)
+        pixEnMask3 = np.load(f)
+        pixEnMask_list = [pixEnMask0, pixEnMask1, pixEnMask2, pixEnMask3]
+else:# generate mask if no input
+    pixelMaskFileName = USER_DATA_DIR+"/pixelMasks/"+os.path.splitext(DATA_FILE_NAME)[0]+".npy"
+    pixEnMask_list = [np.zeros((pixMap.TOP_NX_PIX, pixMap.TOP_NY_PIX), dtype=int) for i in range(icp.nPdcMax)] # init an empty mask to set later
+    maskCX = 32 # center position in X axis (from wirebond 1 to wirebond 32)
+    maskCY = 32 # center position in Y axis (from CMOS pads to 2D SPADs)
+    maskX = 64 # width in X axis (used to match scintillator size)
+    maskY = 64 # width in Y axis (used to match scintillator size)
+    print(f"{fgColors.blue}Generate pixel mask, save to {pixelMaskFileName}{fgColors.endc}")
+
+    # loop over each PDC to generate a pixel mask
+    for iPdc in range(icp.nPdcMax):
+        if ((icp.pdcEnUser >> iPdc) & 0x1) == 0x1:
+            print(f"{fgColors.blue}Generate mask for PDC{iPdc}:{fgColors.endc}")
             # NOTE: specify here a pattern to place on the PDCs
             # square/rectangle is the default
             # begin with all pixels ENABLED (1)
-            pixEnMask[maskCX-maskX//2:maskCX+maskX//2, maskCY-maskY//2:maskCY+maskY//2] = 1
+            pixEnMask_list[iPdc][maskCX-maskX//2:maskCX+maskX//2, maskCY-maskY//2:maskCY+maskY//2] = 1
 
             # checker pattern can help for crosstalk analysis
             checkerPattern=False
             if checkerPattern:
-                pixEnMask[maskCX-maskX//2:maskCX+maskX//2, maskCY-maskY//2:maskCY+maskY//2] = 1
+                pixEnMask_list[iPdc][maskCX-maskX//2:maskCX+maskX//2, maskCY-maskY//2:maskCY+maskY//2] = 1
                 pixEnChMask = np.zeros((pixMap.TOP_NX_PIX, pixMap.TOP_NY_PIX), dtype=int)
                 pitch = 2
                 pixEnChMask[pitch//2::pitch, ::pitch] = 1
                 pixEnChMask[::pitch, pitch//2::pitch] = 1
-                pixEnMask = np.logical_and(pixEnMask, pixEnChMask)
+                pixEnMask_list[iPdc] = np.logical_and(pixEnMask_list[iPdc], pixEnChMask)
 
             # NOTE: here is an example to manually DISABLED (0) some pixels specific for each PDC
             # NOTE: User can use different masks for each PDC here
-            
-            #AS head 62
-            #if iPdc == 0:
-            #    #pixEnMask[maskCX-maskX//2:maskCX+maskX//2, maskCY-maskY//2:maskCY+maskY//2] = 0
-            #    pixEnMask[0:63, 0:63] = 0
-                pixEnMask[::,::] = 1
+            if iPdc == 0:
+            #    #pixEnMask_list[iPdc][maskCX-maskX//2:maskCX+maskX//2, maskCY-maskY//2:maskCY+maskY//2] = 0
+                pixEnMask_list[iPdc][::,::] = 1 #AS head 62
             if iPdc == 1:
-                #pixEnMask[maskCX-maskX//2:maskCX+maskX//2, maskCY-maskY//2:maskCY+maskY//2] = 0
-                pixEnMask[::,58:] = 0
+                #pixEnMask_list[iPdc][maskCX-maskX//2:maskCX+maskX//2, maskCY-maskY//2:maskCY+maskY//2] = 0
+                pixEnMask_list[iPdc][::,58:] = 0#AS head 62
             if iPdc == 2:
-                #pixEnMask[maskCX-maskX//2:maskCX+maskX//2, maskCY-maskY//2:maskCY+maskY//2] = 0
-                pixEnMask[0:15, ::] = 0
-                pixEnMask[::, 59:] = 0
+                #pixEnMask_list[iPdc][maskCX-maskX//2:maskCX+maskX//2, maskCY-maskY//2:maskCY+maskY//2] = 0
+                pixEnMask_list[iPdc][0:15, ::] = 0#AS head 62
+                pixEnMask_list[iPdc][::, 59:] = 0#AS head 62
             if iPdc == 3:
-                #pixEnMask[maskCX-maskX//2:maskCX+maskX//2, maskCY-maskY//2:maskCY+maskY//2] = 0
-                pixEnMask[0:16, ::] = 0
-            
+                #pixEnMask_list[iPdc][maskCX-maskX//2:maskCX+maskX//2, maskCY-maskY//2:maskCY+maskY//2] = 0
+                pixEnMask_list[iPdc][0:16, ::] = 0#AS head 62
+    with open(pixelMaskFileName, 'wb') as mask_f:
+        np.save(mask_f, pixEnMask_list)
+
+# loop over each PDC to generate a pixel mask
+for iPdc in range(icp.nPdcMax):
+    if ((icp.pdcEnUser >> iPdc) & 0x1) == 0x1:
+        print(f"{fgColors.blue}Generate mask for PDC{iPdc}:{fgColors.endc}")
+        # PDC is enabled, configure it
+        try:
             # NOTE: convertPixArrayToReg function from python module pdcSpadFunctions
             # supported methods: constant, average, percent, medianFactor, medianToMin
             #get desired screamer ID method
@@ -682,7 +699,7 @@ for iPdc in range(icp.nPdcMax):
                         pixArray=dfTcr[f"SPAD_TCR{iPdc}"],
                         thMethod=getattr(pdcSpadFunctions.ThreshMethod, screamer_method),
                         thOp=pdcSpadFunctions.ThreshOp.le,
-                        pixEnMask = pixEnMask,
+                        pixEnMask = pixEnMask_list[iPdc],
                         returnAnalysis=False,
                         log=False,  # set log to True to print the values of the registers to program 
                         plot=plotVal, 
@@ -697,7 +714,7 @@ for iPdc in range(icp.nPdcMax):
                 cmap = mcolors.LinearSegmentedColormap.from_list("BlackWhite", colors)
                 plt.ion()
                 plt.figure()
-                plt.imshow(pixEnMask.T, cmap=cmap, origin='lower', aspect="equal")
+                plt.imshow(pixEnMask_list[iPdc].T, cmap=cmap, origin='lower', aspect="equal")
                 #plt.show()
 
             # enable the proper SPADs
