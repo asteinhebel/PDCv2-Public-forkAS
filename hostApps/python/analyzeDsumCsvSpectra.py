@@ -5,6 +5,7 @@
 #-- Create Date: 2026-03-04
 #-- Description:
 #--      Analyse and display csv results files from getDsumXt.py
+#--      CALLS ENVIRONMENT VARIABLES!
 #--
 #-- Dependencies:
 #-- Revision:
@@ -191,6 +192,8 @@ def getScintTau(fileIn) -> float:
     elif 'diamond' in fileIn:
         return 10.0
     elif 'ej276d' in fileIn:
+        return 35.0 #13, 35, 270 for gamma. 13. 59, 460 for neutron
+    elif 'ej267d' in fileIn:
         return 35.0 #13, 35, 270 for gamma. 13. 59, 460 for neutron
     else:
         return 40.0
@@ -1844,11 +1847,16 @@ def getFramesByPdcIdxAndFrameIdx(dfIn, method:str, numFrames:int=None,
         pdcIdx = [-1]
 
     filters = []
+    numFramesIn = numFrames
     for iPdc in pdcIdx:
         if iPdc == -1:
             frames = dfIn[["pdcIdx", "frameIdx"]].drop_duplicates()
         else:
             frames = dfIn.loc[dfIn["pdcIdx"] == iPdc, ["pdcIdx", "frameIdx"]].drop_duplicates()
+
+        if len(frames)<numFrames and method in ["first", "last", "random"]:
+            print(f"{fgColors.yellow}WARNING: {numFrames} frames given with method '{method}' but only {len(frames)} available with PDC {iPdc}. Using 1 frame.{fgColors.endc}")
+            numFrames = 1
 
         if method == "first":
             framesToKeep = frames.iloc[:numFrames, :]
@@ -1867,6 +1875,9 @@ def getFramesByPdcIdxAndFrameIdx(dfIn, method:str, numFrames:int=None,
 
         for i, (pdc, frame) in framesToKeep.iterrows():
             filters.append({"pdcIdx": pdc, "frameIdx": frame})
+
+        #reset numFrames, in case it was changed for this PDC
+        numFrames = numFramesIn
 
     # transform list into DataFrame for next operation
     dfFilter = pd.DataFrame(filters, columns=["pdcIdx", "frameIdx"])
@@ -2401,8 +2412,8 @@ if __name__ == "__main__":
         # -----------------------------------------------
         sectionPrint("Update the energy calculation")
         # these are examples of energy calculation methods
-        getDsumEnergy(dfKeep, col="dsum", transform="sum")
-        #getDsumEnergy(dfKeep, col="dsumLin", transform="sum", dtype=np.float32)
+        #getDsumEnergy(dfKeep, col="dsum", transform="sum")
+        getDsumEnergy(dfKeep, col="dsumLin", transform="sum", dtype=np.float32)
         #getDsumEnergy(dfKeep, col="dsumLevel", transform="max")
         logExecutionTime("getDsumEnergy()")
 
