@@ -5,7 +5,7 @@
 #-- Create Date: 2026-03-04
 #-- Description:
 #--      Analyse and display csv results files from getDsumXt.py
-#--      CALLS ENVIRONMENT VARIABLES!
+#--      CALLS ENVIRONMENT VARIABLES! RUN_VERBOSE, FILE_IN, DO_PLOT, SHOW_PLOT, SAVE_DATA, PLOT_DIR
 #--
 #-- Dependencies:
 #-- Revision:
@@ -192,9 +192,9 @@ def getScintTau(fileIn) -> float:
     elif 'diamond' in fileIn:
         return 10.0
     elif 'ej276d' in fileIn:
-        return 35.0 #13, 35, 270 for gamma. 13. 59, 460 for neutron
+        return 13.0 #13, 35, 270 for gamma. 13. 59, 460 for neutron
     elif 'ej267d' in fileIn:
-        return 35.0 #13, 35, 270 for gamma. 13. 59, 460 for neutron
+        return 13.0 #13, 35, 270 for gamma. 13. 59, 460 for neutron
     else:
         return 40.0
 
@@ -1456,10 +1456,13 @@ def plotPsdFctEnergy(dfIn):
         if not showPlot:
             plt.savefig(outputDirectory+f"PDC{iPdc}/psdVsEnergy.png")
             plt.clf()
+        if saveData:
+            with open(outputDirectory+f"npy/PDC{iPdc}_psdVsEnergy.npy", 'wb') as f:
+                np.savez(f, **{"hist":H.T, "bin_edges_x":xedges, "bin_edges_y":yedges}) 
 
     fig.savefig(outputDirectory+"psdVsEnergy_combined.png")
 
-    return #fig, axes
+    return 
 
 
 # -----------------------------------------------
@@ -1544,7 +1547,7 @@ def findPhotoPeaks(dfSpectrum, spectrumBinMin=0, spectrumBinMax=-1,
                    peaksTolerance=80) -> dict:
     """
     # fit peaks of an energy spectrum
-    # NOTE: preliminary. Results are not garantied.
+    # NOTE: preliminary. Results are not guaranteed.
     # NOTE: Multiple parameters are hardcoded and not made available as a function parameter.
     #       User can tweak the values if required depending on the measurements.
     # dfSpectrum -> DataFrame with the spectrum data of a single PDC
@@ -1672,6 +1675,8 @@ def findPhotoPeaks(dfSpectrum, spectrumBinMin=0, spectrumBinMax=-1,
 
     except RuntimeError as ex:
         print(f"    RuntimeError {ex}")
+    except IndexError as ex:
+        print(f"    IndexError {ex}")
 
     return outputDict
 
@@ -1801,6 +1806,9 @@ def plotEnergySpectra(dfSpectra, axes=None, peakInfos=None,
 
         if not showPlot:
             fig.savefig(outputDirectory+"spectra_combined.png")
+        if saveData:
+            with open(outputDirectory+f"npy/PDC{str(iPdc)[0]}_spectrum.npy", 'wb') as f:
+                np.savez(f, dfSpectrum.to_numpy())
 
 # -----------------------------------------------
 # --- Methods to select a frame
@@ -1906,10 +1914,16 @@ def plotDfColHisto(dfIn, col, name="") -> None:
         print(f"  numberOfBins ({numberOfBins}) is too large, reducing to {maxNumBins}")
         numberOfBins = maxNumBins
 
+    # skip if no data
+    if numberOfBins == 0:
+        print(f"  No bins found for {col} - skip")
+        return
+
+
     title = f"Histogram of {col}"
     plt.close(title)
     plt.figure(title)
-    plt.hist(dfIn[col], bins=numberOfBins, histtype="bar",
+    hist = plt.hist(dfIn[col], bins=numberOfBins, histtype="bar",
              density=True, cumulative=False)
     plt.yscale("log")
     plt.xlabel(f"{col}")
@@ -1918,6 +1932,11 @@ def plotDfColHisto(dfIn, col, name="") -> None:
     if not showPlot:
         plt.savefig(outputDirectory+name+f"histogram_{col}.png")
     plt.close()
+    if saveData and len(name)>0:
+        #only save npy for individual PDCs, can add them together next
+        name = name[:-1]+"_" 
+        with open(outputDirectory+"npy/"+name+f"histogram_{col}.npy", 'wb') as f:
+            np.savez(f, **{"counts":hist[0], "bin_edges":hist[1]}) #counts, bin edges
 
 def plotDfColHistoPerPDC(dfIn, col) -> None:
     """
@@ -2072,14 +2091,17 @@ if __name__ == "__main__":
 
         # NOTE: Default behavior of the script is no plot, change here to enable them
         global showPlot
+        global saveData
+        global outputDirectory
         doPlot = os.environ.get("DO_PLOT", "False").lower() in ("enabled", "en", "yes", "y", "on", "true", "t", "1")
         showPlot = os.environ.get("SHOW_PLOT", "False").lower() in ("enabled", "en", "yes", "y", "on", "true", "t", "1")
+        saveData = os.environ.get("SAVE_DATA", "False").lower() in ("enabled", "en", "yes", "y", "on", "true", "t", "1")
+        outputDirectory = f"{os.getcwd()}/plots/"
         if doPlot:
             # this example script will generate plots
             if showPlot:
                 plt.ion()
             # define output file location and create if does not exist
-            global outputDirectory
             outputDirectory = os.environ.get("PLOT_DIR", f"{os.getcwd()}/plots/")
             if outputDirectory[:-1] != "/":
                 outputDirectory+="/" 
@@ -2092,6 +2114,11 @@ if __name__ == "__main__":
                 os.mkdir(outputDirectory+"PDC1/")
                 os.mkdir(outputDirectory+"PDC2/")
                 os.mkdir(outputDirectory+"PDC3/")
+        if saveData:
+            #save location for output data files pulled from plots
+            if not os.path.exists(outputDirectory+"npy/"):
+                #create folder if does not exist
+                os.mkdir(outputDirectory+"npy/")
 
         # keep time reference at the beginning
         # NOTE: call this function to add entry in the execution time dictionary
@@ -2326,7 +2353,7 @@ if __name__ == "__main__":
         reconstDsumLevelFromEdgeAcq(dfKeep,
                                     holdOffClkCycle=dfHold,
                                     dfColName=holdOffClkCyclesColName,
-                                    doPlot=False)
+                                    doPlot=doPlot)
         logExecutionTime(f"reconstDsumLevelFromEdgeAcq()")
 
         # Extract a single frame from DataFrame dfKeep
@@ -2489,11 +2516,13 @@ if __name__ == "__main__":
                                       peaksTolerance=80)
             logExecutionTime(f"findPhotoPeaks(PDC{iPdc})")
 
-            if doPlot:
+            if doPlot and infoDict: #require that infoDict is populated
                 plotEnergySpectra(dfSpectrum,
                                   axes=[axes[idx]],
                                   peakInfos=[infoDict],
                                   plotRebin=True, plotPeaks=True, plotFit=True)
+            elif doPlot and not infoDict:
+                print(f"{fgColors.yellow}WARNING: findPhotoPeaks(PDC{iPdc}) did not execute correctly - skip plotting this spectrum{fgColors.endc}")
 
         # -----------------------------------------------
         # --- Function to plot frames from a subset
