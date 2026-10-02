@@ -16,12 +16,25 @@ def make_file_outname():
 def make_log():
     """Create log file with details about generation and which input files were used."""
 
+    #get total measurement duration
+    durations = [f.split('_')  for f in ins]
+    durations_s = [i[:-1] for i in [i for r in durations for i in r] if i[-1]=="s"] #flatten durations and pull out entries that end in s after stripping the s
+    #try to convert remaining value to floats to add. if it can't be converted, then it's not part of the timing 
+    total_duration = 0
+    for i in durations_s:
+        try:
+            total_duration+=float(i)
+        except ValueError:
+            continue
+
     with open(fout+".log", 'w') as f:
         f.write("INPUT FILES:\n")
         for inputs in ins:
             f.write(inputs+"\n")
         f.write("\n")
-        
+        f.write("TOTAL DURATION:\n")
+        f.write(str(total_duration)+" s")
+
 
 def check_pix_map():
     """Confirm that all pixel masks are the same. If so, save a new version wih the new dataset name"""
