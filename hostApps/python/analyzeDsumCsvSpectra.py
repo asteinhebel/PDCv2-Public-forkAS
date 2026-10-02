@@ -1502,6 +1502,7 @@ def getEnergySpectra(dfIn, combinedFilter=None) -> pd.DataFrame:
 
     #dfSpectra = pd.DataFrame(columns=["pdcIdx", "binCenters", "binCounts"])
     dfSpectra = pd.DataFrame()
+    shared_bins = getSharedHistBins(dfIn, "energy")
     for iPdc in pdcList:
         try:
             pdcFilter = dfIn["pdcIdx"] == iPdc
@@ -1520,8 +1521,9 @@ def getEnergySpectra(dfIn, combinedFilter=None) -> pd.DataFrame:
             continue
 
         # generate the energy spectrum
-        bins = np.arange(np.min(pdcData), np.max(pdcData))
-        binCounts, binEdges = np.histogram(pdcData, bins=bins)
+        #bins = np.arange(np.min(pdcData), np.max(pdcData))
+        #binCounts, binEdges = np.histogram(pdcData, bins=bins)
+        binCounts, binEdges = np.histogram(pdcData, bins=shared_bins)
         binCenters = (binEdges[1:] + binEdges[:-1])/2.0
         # DataFrame with a single spectrum (one PDC)
         dfSpectrum = pd.DataFrame({"pdcIdx": [iPdc]*len(binCounts),
@@ -1739,8 +1741,7 @@ def plotEnergySpectra(dfSpectra, axes=None, peakInfos=None,
 
     for idx, iPdc in enumerate(pdcList):
         dfSpectrum = extractPdcSpectrum(dfSpectra, iPdc)
-        axes[idx].step(dfSpectrum["binCenters"], dfSpectrum["binCounts"],
-                       label=f"PDC{iPdc}")
+        axes[idx].step(dfSpectrum["binCenters"], dfSpectrum["binCounts"], label=f"PDC{iPdc}")
 
         if peakInfos is not None:
             try:
@@ -2511,7 +2512,7 @@ if __name__ == "__main__":
             infoDict = findPhotoPeaks(dfSpectrum,
                                       spectrumBinMin=30,
                                       spectrumBinMax=-1,
-                                      nBinPerBin=10,
+                                      nBinPerBin=7,#10,
                                       relThreshold=0.08,
                                       peaksTolerance=80)
             logExecutionTime(f"findPhotoPeaks(PDC{iPdc})")
