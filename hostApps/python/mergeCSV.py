@@ -8,10 +8,23 @@ import numpy as np
 # --- methods
 # -----------------------------------------------
 
-def make_file_outname(ins):
-    return datetime.datetime.now(tz=datetime.UTC).strftime("%Y%m%d-%Hh%Mm%S")
+def make_file_outname():
+    """ Define shared output name """
 
-def checkPixMap(ins, fout):
+    return "mergedData/"+datetime.datetime.now(tz=datetime.UTC).strftime("%Y%m%d-%Hh%Mm%S")
+
+def make_log():
+    """Create log file with details about generation and which input files were used."""
+
+    with open(fout+".log", 'w') as f:
+        f.write("INPUT FILES:\n")
+        for inputs in ins:
+            f.write(inputs+"\n")
+        f.write("\n")
+        
+
+def check_pix_map():
+    """Confirm that all pixel masks are the same. If so, save a new version wih the new dataset name"""
 
     enabled = [ [] for _ in range(len(ins)) ]
 
@@ -36,7 +49,9 @@ def checkPixMap(ins, fout):
         for line in firstfile:
                 secondfile.write(line)
 
-def checkHoldoff(ins, fout):
+def check_holdoff():
+    """Confirm that the same holdoff time was used for every input. If so, create new file with that time and new dataset name."""
+
     holdoff = []
 
     for i,fin in enumerate(ins):
@@ -60,7 +75,9 @@ def checkHoldoff(ins, fout):
         for line in firstfile:
                 secondfile.write(line)
 
-def mergeCSV(ins, fout):    
+def merge_csv():  
+    """Merge CSVs into one in chunks. Save to file of shared dataset name."""
+
     CHUNK_SIZE = 50000
     frameIdx_increment = 0
     last_largest_frameIdx = 0
@@ -80,22 +97,27 @@ def mergeCSV(ins, fout):
             header_bool = True if (i==0 and firstChunk) else False
             chunk.to_csv(fout+'.csv', mode="a", index=False, header=header_bool, sep=";")
             firstChunk=False
+
 # -----------------------------------------------
 # --- main
 # -----------------------------------------------
-def main(input_list):
+def main():
 
     #define output name
-    fout = make_file_outname(input_list)
+    global fout 
+    fout = make_file_outname()
 
     #confirm that same pixel map was used for all and create new output if so
-    checkPixMap(input_list, fout)
+    check_pix_map()
 
     #confirm that same holdoff time was used for all and create new output if so. ONLY HOLDOFF VALUE IS VALID FOR MERGED FILE
-    checkHoldoff(input_list, fout)
+    check_holdoff()
 
     #merge CSVs into one
-    mergeCSV(input_list, fout)
+    merge_csv()
+
+    #create note/log 
+    make_log()
 
 # -----------------------------------------------
 # --- call to main
@@ -111,4 +133,11 @@ if __name__ == "__main__":
         else:
             inputs_that_exist.append(inp)
 
-    main(inputs_that_exist)
+    #check that output dir exists
+    if not os.path.isdir('mergedData'):
+        os.mkdir('mergedData/')
+
+    global ins 
+    ins=inputs_that_exist
+
+    main()
