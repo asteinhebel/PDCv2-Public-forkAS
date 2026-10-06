@@ -1,3 +1,5 @@
+# run like mergeCSV.py <file path> <file path> ...
+
 import sys
 import os
 import datetime
