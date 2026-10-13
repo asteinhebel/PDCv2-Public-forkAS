@@ -614,7 +614,7 @@ PDC_SETTING.print()
 sectionPrint("enable PDC SPADs")
 
 # generate or load a pattern to select which SPADs to enable
-load_pixMask = os.environ.get("PDC_MASK")
+load_pixMask = os.environ.get("PDC_MASK", default="")
 
 # load TCR CSV file into a pandas dataframe
 dfTcr = pd.read_csv(tcrFile, header=0, sep=';')
@@ -628,14 +628,12 @@ sys.stdout = systemHelper.Tee(defaultStdout, pixelStatsFile)
 #Import or generate mask pattern - NOT INCLUDING SCREAMERS
 if os.path.exists(load_pixMask): #import mask if valid file given
     print(f"{fgColors.blue}Importing pixel mask from {load_pixMask}{fgColors.endc}")
-    with open(load_pixMask, 'rb') as f:
-        pixEnMask0 = np.load(f)
-        pixEnMask1 = np.load(f)
-        pixEnMask2 = np.load(f)
-        pixEnMask3 = np.load(f)
-        pixEnMask_list = [pixEnMask0, pixEnMask1, pixEnMask2, pixEnMask3]
+    masks_in = np.load(load_pixMask)
+    pixEnMask_list = []
+    for a in masks_in.keys():
+        pixEnMask_list.append(masks_in[a])
 else:# generate mask if no input
-    pixelMaskFileName = USER_DATA_DIR+"/pixelMasks/"+os.path.splitext(DATA_FILE_NAME)[0]+".npy"
+    pixelMaskFileName = USER_DATA_DIR+"/pixelMasks/"+os.path.splitext(DATA_FILE_NAME)[0]+".npz"
     pixEnMask_list = [np.zeros((pixMap.TOP_NX_PIX, pixMap.TOP_NY_PIX), dtype=int) for i in range(icp.nPdcMax)] # init an empty mask to set later
     maskCX = 32 # center position in X axis (from wirebond 1 to wirebond 32)
     maskCY = 32 # center position in Y axis (from CMOS pads to 2D SPADs)
@@ -666,25 +664,19 @@ else:# generate mask if no input
             # NOTE: User can use different masks for each PDC here
             if iPdc == 0:
             #    #pixEnMask_list[iPdc][maskCX-maskX//2:maskCX+maskX//2, maskCY-maskY//2:maskCY+maskY//2] = 0
-                #pixEnMask_list[iPdc][::,::] = 1 #AS head 62
-                pixEnMask_list[iPdc][::, :40] = 0#AS head 59
+                pixEnMask_list[iPdc][::,::] = 1 #AS head 62
             if iPdc == 1:
                 #pixEnMask_list[iPdc][maskCX-maskX//2:maskCX+maskX//2, maskCY-maskY//2:maskCY+maskY//2] = 0
-                #pixEnMask_list[iPdc][::,58:] = 0#AS head 62
-                pixEnMask_list[iPdc][17:, ::] = 0#AS head 59
-                pixEnMask_list[iPdc][::, :40] = 0#AS head 59
+                pixEnMask_list[iPdc][::,58:] = 0#AS head 62
             if iPdc == 2:
                 #pixEnMask_list[iPdc][maskCX-maskX//2:maskCX+maskX//2, maskCY-maskY//2:maskCY+maskY//2] = 0
-                #pixEnMask_list[iPdc][0:15, ::] = 0#AS head 62
-                #pixEnMask_list[iPdc][::, 59:] = 0#AS head 62
-                pixEnMask_list[iPdc][:46, ::] = 0#AS head 59
-                pixEnMask_list[iPdc][::, :5] = 0#AS head 59
+                pixEnMask_list[iPdc][0:15, ::] = 0#AS head 62
+                pixEnMask_list[iPdc][::, 0:5] = 0#AS head 62
             if iPdc == 3:
                 #pixEnMask_list[iPdc][maskCX-maskX//2:maskCX+maskX//2, maskCY-maskY//2:maskCY+maskY//2] = 0
-                #pixEnMask_list[iPdc][0:16, ::] = 0#AS head 62
-                pixEnMask_list[iPdc][::, :5] = 0#AS head 59
-    with open(pixelMaskFileName, 'wb') as mask_f:
-        np.save(mask_f, pixEnMask_list)
+                pixEnMask_list[iPdc][0:16, ::] = 0#AS head 62
+    #save mask to pixelMasks/*.npz
+    np.savez(pixelMaskFileName, *pixEnMask_list)
 
 # loop over each PDC to generate a pixel mask
 for iPdc in range(icp.nPdcMax):

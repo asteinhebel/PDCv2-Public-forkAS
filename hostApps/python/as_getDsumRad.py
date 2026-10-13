@@ -674,7 +674,7 @@ else:# generate mask if no input
             if iPdc == 2:
                 #pixEnMask_list[iPdc][maskCX-maskX//2:maskCX+maskX//2, maskCY-maskY//2:maskCY+maskY//2] = 0
                 pixEnMask_list[iPdc][0:15, ::] = 0#AS head 62
-                pixEnMask_list[iPdc][::, 59:] = 0#AS head 62
+                pixEnMask_list[iPdc][::, 0:5] = 0#AS head 62
             if iPdc == 3:
                 #pixEnMask_list[iPdc][maskCX-maskX//2:maskCX+maskX//2, maskCY-maskY//2:maskCY+maskY//2] = 0
                 pixEnMask_list[iPdc][0:16, ::] = 0#AS head 62
