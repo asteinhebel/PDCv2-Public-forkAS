@@ -47,6 +47,15 @@ import pdcv2_modules.hexReadCsvParser as hrcp
 import pdcv2_modules.energySpectrumAnalysisHelper as esah
 
 
+# -----------------------------------------------
+# --- logging
+# -----------------------------------------------
+class Tee(object):
+    def __init__(self, *files):
+        self.files = files
+    def write(self, obj):
+        for f in self.files:
+            f.write(obj)
 
 # -----------------------------------------------
 # --- list available functions
@@ -74,7 +83,6 @@ def listAvailFunc(doPrint=False):
             print(func)
 
     return funcList
-
 
 # -----------------------------------------------
 # --- Log execution time
@@ -1924,7 +1932,12 @@ def plotDfColHisto(dfIn, col, name="") -> None:
     # col -> name of the column to produce a histogram on.
     """
     print(f"Processing {col}")
-    numberOfBins = int(abs(max(dfIn[col])-min(dfIn[col])))
+    try:
+        numberOfBins = int(abs(max(dfIn[col])-min(dfIn[col])))
+    except ValueError:
+        if len(dfIn[col])==0:
+            print(f"{col} is empty - skip")
+            return
 
     # limit the number of bins in the histogram
     maxNumBins = 256
@@ -1972,9 +1985,12 @@ def getSharedHistBins(dfIn, col) -> list:
     """
     mins, maxs, maxBins = [],[],[]
     for iPdc in range(len(np.unique(dfIn['pdcIdx']))):
-        maxBins.append(int(abs(max(dfIn[dfIn['pdcIdx']==iPdc][col])-min(dfIn[dfIn['pdcIdx']==iPdc][col]))))
-        mins.append(min(dfIn[col]))
-        maxs.append(max(dfIn[col]))
+        try:
+            maxBins.append(int(abs(max(dfIn[dfIn['pdcIdx']==iPdc][col])-min(dfIn[dfIn['pdcIdx']==iPdc][col]))))
+            mins.append(min(dfIn[col]))
+            maxs.append(max(dfIn[col]))
+        except ValueError:
+            pass
 
     #replace maxBins that are too large
     maxNumBins = 256
@@ -2137,6 +2153,9 @@ if __name__ == "__main__":
             if not os.path.exists(outputDirectory+"npy/"):
                 #create folder if does not exist
                 os.mkdir(outputDirectory+"npy/")
+
+        # set up log file
+        sys.stdout = Tee(sys.stdout, open(outputDirectory+"out.log", 'w'))
 
         # keep time reference at the beginning
         # NOTE: call this function to add entry in the execution time dictionary
