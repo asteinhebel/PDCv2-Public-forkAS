@@ -2500,8 +2500,8 @@ if __name__ == "__main__":
         sectionPrint("Pulse shape discrimination")
 
         #df_psd = applyPsd(dfKeep, nPrompt_l=0, nPrompt_r=1, nTotal=HOLD_TIME_CLK_CYCLES-5, colToPsd="dsumLin")
-        #df_psd = applyPsd(dfKeep, nPrompt_l=0, nPrompt_r=1, nTotal=-1, colToPsd="dsumLin") #AS
-        df_psd = applyPsd(dfKeep, nPrompt_l=15, nPrompt_r=20, nTotal=20, colToPsd="dsumLin")
+        df_psd = applyPsd(dfKeep, nPrompt_l=0, nPrompt_r=1, nTotal=-1, colToPsd="dsumLin") #AS
+        #df_psd = applyPsd(dfKeep, nPrompt_l=15, nPrompt_r=20, nTotal=20, colToPsd="dsumLin")
         logExecutionTime("applyPsd()")
 
         if doPlot:
