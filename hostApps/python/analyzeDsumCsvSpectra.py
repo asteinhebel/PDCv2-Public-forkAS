@@ -1621,6 +1621,10 @@ def findPhotoPeaks(dfSpectrum, spectrumBinMin=0, spectrumBinMax=-1,
         dfPeaks = esah.cleanPeaks(dfPeaks, tolerance=peaksTolerance)
         print(f"dfPeaks:\n{dfPeaks}")
 
+        # if dfPeaks is empty, then exit this method
+        if len(dfPeaks)==0:
+            return outputDict
+
         # remove peaks with gain below or above thresholds
         peakLowGainThreshold = photoPeak*0.05
         peakHighGainThreshold = np.max(binCounts)
@@ -2590,19 +2594,20 @@ if __name__ == "__main__":
                                                 numFrames=5, pdcIdx="all")
         logExecutionTime("getFramesByPdcIdxAndFrameIdx(all, 5)")
         dfSubsetGroup = groupDfByFrameAndPdc(dfSubset)
-        #if RUN_VERBOSE, then save dfKeep as its own .csv
-        if verbose:
-            if len(dfKeep)>20000000:
-                for idx, chunk in enumerate(np.array_split(dfKeep, int(len(dfKeep))/20000000)):
-                    chunk.to_csv(datafile[:-4]+"_dfkeep_"+str(idx)+".csv")
-            else:
-                dfKeep.to_csv(datafile[:-4]+"_dfkeep_0.csv")
 
         if doPlot:
             # for the
             plotDsumFrames(dfSubsetGroup,
                            xCol="binIdx",
                            yColsToPlot=["dsum", "dsumLevel", "dsumLin"])
+
+        #if SAVE_DATA, then save dfKeep as its own .csv
+        if saveData:
+            if len(dfKeep)>20000000:
+                for idx, chunk in enumerate(np.array_split(dfKeep, int(len(dfKeep))/20000000)):
+                    chunk.to_csv(outputDirectory+"/npy/dfkeep_"+str(idx)+".csv")
+            else:
+                dfKeep.to_csv(outputDirectory+"/npy/dfkeep_0.csv")
 
         # if plots are enabled
         if doPlot:
