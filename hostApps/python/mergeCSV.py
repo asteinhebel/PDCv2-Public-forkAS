@@ -5,15 +5,69 @@ import os
 import datetime
 import pandas as pd
 import numpy as np
+import glob
+from difflib import SequenceMatcher
 
 # -----------------------------------------------
 # --- methods
 # -----------------------------------------------
 
+def check_path(path_in):
+    """ Confirm path exists, return valid path """
+    if not os.path.exists(path_in):
+        print(f"Could not find {path_in} - skip this input")
+        return
+    else:
+        return path_in[:-4] #remove csv extension
+
+def matching_sequences(strings, start_marker="_as"):
+    """Return matching character sequences shared by all strings.
+
+    The returned string always begins with an alphanumeric character.
+
+    AI generated
+    """
+
+    if not strings:
+        return ""
+
+    # Remove the date/time prefix from every string
+    trimmed = []
+    for string in strings:
+        start = string.find(start_marker)
+        if start == -1:
+            return ""
+        trimmed.append(string[start:])
+
+    common = trimmed[0]
+
+    # Find sequences shared by all strings
+    for string in trimmed[1:]:
+        matcher = SequenceMatcher(None, common, string, autojunk=False)
+
+        common = "".join(
+            common[i:i + size]
+            for i, _, size in matcher.get_matching_blocks()
+            if size > 0
+        )
+
+        if not common:
+            return ""
+
+    # Remove leading characters until the first character is alphanumeric
+    first_alphanumeric = next(
+        (index for index, character in enumerate(common)
+         if character.isalnum()),
+        None
+    )
+
+    return "" if first_alphanumeric is None else common[first_alphanumeric:]
+
 def make_file_outname():
     """ Define shared output name """
 
-    return "mergedData/"+datetime.datetime.now(tz=datetime.UTC).strftime("%Y%m%d-%Hh%Mm%S")
+    fnames=[i.split('/')[-1] for i in ins]
+    return "mergedData/"+datetime.datetime.now().astimezone().strftime("%Y%m%d-%Hh%Mm%S")+"_"+matching_sequences(fnames)
 
 def make_log():
     """Create log file with details about generation and which input files were used."""
@@ -36,7 +90,6 @@ def make_log():
         f.write("\n")
         f.write("TOTAL DURATION:\n")
         f.write(str(total_duration)+" s")
-
 
 def check_pix_map():
     """Confirm that all pixel masks are the same. If so, save a new version wih the new dataset name"""
@@ -140,13 +193,9 @@ def main():
 if __name__ == "__main__":
 
     #check that inputs exist
-    inputs = sys.argv[1:]
-    inputs_that_exist = []
-    for inp in inputs:
-        if not os.path.exists(inp+".csv"):
-            print(f"Could not find {inp} - skip this input")
-        else:
-            inputs_that_exist.append(inp)
+    inputs = sys.argv[1:] #send in paths to CSV files 
+    input_list = [glob.glob(inp) for inp in inputs]
+    inputs_that_exist = [check_path(inp) for input_file in input_list for inp in input_file]
 
     #check that output dir exists
     if not os.path.isdir('mergedData'):
