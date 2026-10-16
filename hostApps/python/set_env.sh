@@ -3,7 +3,7 @@
 export SHOW_PLOT=False
 export DO_PLOT=True
 export RUN_VERBOSE=False
-export SAVE_DATA=False
+export SAVE_DATA=True
 export ENERGY=dsumLin #dsum, dsumLevel, dsumLin
 
 read -p "Input PLOT_DIR    " plot_dir
